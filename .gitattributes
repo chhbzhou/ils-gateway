@@ -1,0 +1,5 @@
+*.sh text eol=lf
+Makefile text eol=lf
+package/ils-gateway/root/etc/init.d/* text eol=lf
+package/ils-gateway/root/etc/uci-defaults/* text eol=lf
+package/ils-gateway/root/usr/bin/* text eol=lf

@@ -1,0 +1,237 @@
+#!/bin/sh /etc/rc.common
+# shellcheck disable=SC2034,SC3043
+
+USE_PROCD=1
+START=95
+STOP=10
+
+NAME=ios-location-spoofer
+BIN=${LOCSPOOF_BIN:-/usr/bin/locspoofd}
+DAEMON_RUNDIR=${LOCSPOOF_DAEMON_RUNDIR:-/var/run/locspoofd}
+CONFIG_DIR=${LOCSPOOF_CONFIG_DIR:-/var/run/locspoofd-config}
+CONFIG_FILE="$CONFIG_DIR/ios-location-spoofer"
+UCI_CONFIG=${LOCSPOOF_UCI_CONFIG:-/etc/config/ios-location-spoofer}
+STATE_DIR=${LOCSPOOF_STATE_DIR:-/var/lib/locspoofd}
+ACTIVITY_DIR=${LOCSPOOF_ACTIVITY_DIR:-/var/lib/locspoofd-activity}
+ACTIVITY_FILE="$ACTIVITY_DIR/activity.json"
+FUNCTIONS_SH=${LOCSPOOF_FUNCTIONS:-/lib/functions.sh}
+CTL=${LOCSPOOF_CTL:-/usr/bin/locspoofctl}
+CA=${LOCSPOOF_CA:-/usr/bin/locspoof-ca}
+PKI_DIR=${LOCSPOOF_PKI_DIR:-/etc/locspoof/pki}
+PKI_HOSTS='gsp-ssl.ls.apple.com gspe1-ssl.ls.apple.com gs-loc.apple.com gs-loc-cn.apple.com bluedot.is.autonavi.com bluedot.is.autonavi.com.gds.alibabadns.com'
+
+. "$FUNCTIONS_SH"
+
+config_get_main() { config_load ios-location-spoofer; config_get "$1" main "$2" "$3"; }
+
+clear_bypass_request() {
+	# Requests are daemon-owned, but only this fixed marker is ever removed.
+	# Refuse to follow a replaced run-directory symlink.
+	if [ -d "$DAEMON_RUNDIR" ] && [ ! -L "$DAEMON_RUNDIR" ]; then
+		rm -f "$DAEMON_RUNDIR/bypass_on.request"
+	fi
+}
+
+ensure_fw4_sets() {
+	# Package installation into an offline root must never reload the host
+	# firewall. Runtime start is the only place allowed to do this.
+	[ -z "${IPKG_INSTROOT:-}" ] || return 1
+	"$CTL" sets_ready >/dev/null 2>&1 && return 0
+	# fw4 owns the nft table and may not have loaded the include yet (fresh
+	# install) or may have rebuilt it during a firewall reload. Never proceed
+	# with a daemon whose device sets are unavailable.
+	if command -v fw4 >/dev/null 2>&1; then
+		fw4 reload || return 1
+	elif [ -x /etc/init.d/firewall ]; then
+		/etc/init.d/firewall reload || return 1
+	else
+		return 1
+	fi
+	"$CTL" sets_ready >/dev/null 2>&1
+}
+
+clear_startup_state() {
+	local rc=0
+	clear_bypass_request || rc=1
+	if [ -d "$STATE_DIR" ] && [ ! -L "$STATE_DIR" ]; then
+		rm -f "$STATE_DIR/enabled" "$STATE_DIR/bypass" "$STATE_DIR/nft_applied" "$STATE_DIR/target_refresh_ok" "$STATE_DIR/target_last_refresh" "$STATE_DIR/target_v4_required" "$STATE_DIR/target_v6_required" || rc=1
+	fi
+	if [ -d "$DAEMON_RUNDIR" ] && [ ! -L "$DAEMON_RUNDIR" ]; then
+		rm -f "$DAEMON_RUNDIR/ready" "$DAEMON_RUNDIR/control.sock" || rc=1
+	fi
+	if [ -d "$CONFIG_DIR" ] && [ ! -L "$CONFIG_DIR" ]; then
+		rm -f "$CONFIG_FILE" || rc=1
+	fi
+	"$CTL" clear || { logger -t "$NAME" "unable to clear nft sets while refusing startup"; rc=1; }
+	return "$rc"
+}
+
+state_dir_safe() {
+	[ -d "$STATE_DIR" ] && [ ! -L "$STATE_DIR" ] || return 1
+	[ "$(stat -c '%U:%G' "$STATE_DIR" 2>/dev/null)" = "root:root" ] || return 1
+	[ "$(stat -c '%a' "$STATE_DIR" 2>/dev/null)" = "700" ] || return 1
+}
+
+daemon_dir_safe() {
+	[ -d "$DAEMON_RUNDIR" ] && [ ! -L "$DAEMON_RUNDIR" ] || return 1
+	[ "$(stat -c '%U:%G' "$DAEMON_RUNDIR" 2>/dev/null)" = "locspoofd:locspoofd" ] || return 1
+	[ "$(stat -c '%a' "$DAEMON_RUNDIR" 2>/dev/null)" = "750" ] || return 1
+}
+
+activity_dir_safe() {
+	[ -d "$ACTIVITY_DIR" ] && [ ! -L "$ACTIVITY_DIR" ] || return 1
+	[ "$(stat -c '%U:%G' "$ACTIVITY_DIR" 2>/dev/null)" = "locspoofd:locspoofd" ] || return 1
+	[ "$(stat -c '%a' "$ACTIVITY_DIR" 2>/dev/null)" = "700" ] || return 1
+}
+
+prepare_runtime_config() {
+	local tmp
+	[ ! -L "$CONFIG_DIR" ] || return 1
+	mkdir -p "$CONFIG_DIR" || return 1
+	chown root:locspoofd "$CONFIG_DIR" || return 1
+	chmod 0750 "$CONFIG_DIR" || return 1
+	tmp=$(mktemp "$CONFIG_DIR/.config.XXXXXX") || return 1
+	if ! cat "$UCI_CONFIG" > "$tmp"; then
+		rm -f "$tmp"
+		return 1
+	fi
+	chown root:locspoofd "$tmp" || { rm -f "$tmp"; return 1; }
+	chmod 0640 "$tmp" || { rm -f "$tmp"; return 1; }
+	mv -f "$tmp" "$CONFIG_FILE" || { rm -f "$tmp"; return 1; }
+}
+
+pki_metadata_check() {
+	local dir="$PKI_DIR"
+	[ "$(stat -c '%a' "$dir" 2>/dev/null)" = "750" ] || return 1
+	[ "$(stat -c '%U:%G' "$dir" 2>/dev/null)" = "root:locspoofd" ] || return 1
+	[ "$(stat -c '%a' "$dir/ca-cert.pem" 2>/dev/null)" = "640" ] || return 1
+	[ "$(stat -c '%U:%G' "$dir/ca-cert.pem" 2>/dev/null)" = "root:locspoofd" ] || return 1
+	[ "$(stat -c '%a' "$dir/ca-key.pem" 2>/dev/null)" = "600" ] || return 1
+	[ "$(stat -c '%U:%G' "$dir/ca-key.pem" 2>/dev/null)" = "root:root" ] || return 1
+	[ "$(stat -c '%a' "$dir/profile-signing-cert.pem" 2>/dev/null)" = "640" ] || return 1
+	[ "$(stat -c '%U:%G' "$dir/profile-signing-cert.pem" 2>/dev/null)" = "root:locspoofd" ] || return 1
+	[ "$(stat -c '%a' "$dir/profile-signing-key.pem" 2>/dev/null)" = "600" ] || return 1
+	[ "$(stat -c '%U:%G' "$dir/profile-signing-key.pem" 2>/dev/null)" = "root:root" ] || return 1
+	[ "$(stat -c '%a' "$dir/ca.mobileconfig" 2>/dev/null)" = "640" ] || return 1
+	[ "$(stat -c '%U:%G' "$dir/ca.mobileconfig" 2>/dev/null)" = "root:locspoofd" ] || return 1
+	for host in $PKI_HOSTS; do
+		[ "$(stat -c '%a' "$dir/$host.pem" 2>/dev/null)" = "640" ] || return 1
+		[ "$(stat -c '%U:%G' "$dir/$host.pem" 2>/dev/null)" = "root:locspoofd" ] || return 1
+	done
+}
+
+pki_access_check() {
+	local dir="$PKI_DIR"
+	# Verify the actual daemon identity, rather than inferring access from mode bits.
+	su -s /bin/sh -c "test -r '$dir/ca-cert.pem' && test -r '$dir/ca.mobileconfig' && ! test -r '$dir/ca-key.pem' && ! test -r '$dir/profile-signing-key.pem'" locspoofd || return 1
+	for host in $PKI_HOSTS; do
+		su -s /bin/sh -c "test -r '$dir/$host.pem' && ! test -r '$dir/ca-key.pem'" locspoofd || return 1
+	done
+}
+
+daemon_ready() {
+	pidof locspoofd >/dev/null 2>&1 && [ -S "$DAEMON_RUNDIR/control.sock" ] && [ -e "$DAEMON_RUNDIR/ready" ]
+}
+
+start_service() {
+	local enabled upstream
+	# Package image construction sets IPKG_INSTROOT; never invoke fw4 or
+	# mutate runtime nft state while building an offline image.
+	[ -n "${IPKG_INSTROOT:-}" ] && return 0
+	clear_startup_state || return 1
+	config_load ios-location-spoofer
+	config_get enabled main enabled 0
+	ensure_fw4_sets || return 1
+	"$CTL" sync_monitor || return 1
+	[ "$enabled" = "1" ] || return 0
+	id locspoofd >/dev/null 2>&1 || {
+		logger -t "$NAME" "package user locspoofd is missing"
+		clear_startup_state
+		return 1
+	}
+	# Never follow an attacker-controlled symlink while preparing either state
+	# directory. The daemon directory is recreated by procd; policy markers
+	# live in the root-owned state directory.
+	[ ! -L "$DAEMON_RUNDIR" ] && [ ! -L "$CONFIG_DIR" ] && [ ! -L "$STATE_DIR" ] && [ ! -L "$ACTIVITY_DIR" ] || { clear_startup_state; return 1; }
+	mkdir -p "$DAEMON_RUNDIR" "$STATE_DIR" "$ACTIVITY_DIR"
+	chown locspoofd:locspoofd "$DAEMON_RUNDIR"
+	chmod 0750 "$DAEMON_RUNDIR"
+	chown root:root "$STATE_DIR" || { clear_startup_state; return 1; }
+	chmod 0700 "$STATE_DIR" || { clear_startup_state; return 1; }
+	chown locspoofd:locspoofd "$ACTIVITY_DIR" || { clear_startup_state; return 1; }
+	chmod 0700 "$ACTIVITY_DIR" || { clear_startup_state; return 1; }
+	if [ ! -e "$ACTIVITY_FILE" ] && [ -f "$DAEMON_RUNDIR/activity.json" ] && [ ! -L "$DAEMON_RUNDIR/activity.json" ]; then
+		cp "$DAEMON_RUNDIR/activity.json" "$ACTIVITY_FILE" || { clear_startup_state; return 1; }
+		chown locspoofd:locspoofd "$ACTIVITY_FILE" || { clear_startup_state; return 1; }
+		chmod 0600 "$ACTIVITY_FILE" || { clear_startup_state; return 1; }
+	fi
+	daemon_dir_safe || { clear_startup_state; return 1; }
+	state_dir_safe || { clear_startup_state; return 1; }
+	activity_dir_safe || { clear_startup_state; return 1; }
+	# fw4 owns the nft table. Ensure its sets exist and clear any stale device
+	# policy before touching PKI or starting the data plane.
+	"$CTL" clear || { clear_startup_state; return 1; }
+	mkdir -p "$PKI_DIR" || { clear_startup_state; return 1; }
+	chown root:locspoofd "$PKI_DIR" || { clear_startup_state; return 1; }
+	chmod 0750 "$PKI_DIR" || { clear_startup_state; return 1; }
+	# Validate the persisted CA and regenerate any missing or damaged leaf bundle.
+	"$CA" -dir "$PKI_DIR" || { clear_startup_state; return 1; }
+	chown root:locspoofd "$PKI_DIR/ca-cert.pem" "$PKI_DIR/profile-signing-cert.pem" "$PKI_DIR/ca.mobileconfig" || { clear_startup_state; return 1; }
+	for host in $PKI_HOSTS; do
+		chown root:locspoofd "$PKI_DIR/$host.pem" || { clear_startup_state; return 1; }
+	done
+	chown root:root "$PKI_DIR/ca-key.pem" "$PKI_DIR/profile-signing-key.pem" || { clear_startup_state; return 1; }
+	chmod 0640 "$PKI_DIR/ca-cert.pem" "$PKI_DIR/profile-signing-cert.pem" "$PKI_DIR/ca.mobileconfig" || { clear_startup_state; return 1; }
+	for host in $PKI_HOSTS; do
+		chmod 0640 "$PKI_DIR/$host.pem" || { clear_startup_state; return 1; }
+	done
+	chmod 0600 "$PKI_DIR/ca-key.pem" "$PKI_DIR/profile-signing-key.pem" || { clear_startup_state; return 1; }
+	chown root:locspoofd "$PKI_DIR" || { clear_startup_state; return 1; }
+	chmod 0750 "$PKI_DIR" || { clear_startup_state; return 1; }
+	if ! pki_metadata_check || ! pki_access_check; then
+		logger -t "$NAME" "PKI permissions are not safe for locspoofd"
+		clear_startup_state
+		return 1
+	fi
+	prepare_runtime_config || { clear_startup_state; return 1; }
+	config_get upstream main upstream_socks5 ''
+
+	rm -f "$STATE_DIR/nft_applied" "$STATE_DIR/bypass"
+	# Resolve configured WLoc hosts through the local DNS listener and atomically
+	# populate target sets before applying device interception.
+	"$CTL" refresh_targets || { clear_startup_state; return 1; }
+	procd_open_instance data-plane
+	procd_set_param command "$BIN" --config "$CONFIG_FILE" --activity-file "$ACTIVITY_FILE"
+	[ -n "$upstream" ] && procd_append_param command --upstream-socks5 "$upstream"
+	procd_set_param user locspoofd
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param respawn 3600 5 5
+	procd_close_instance
+	procd_open_instance watchdog
+	procd_set_param command /usr/bin/locspoof-watchdog
+	procd_set_param user root
+	procd_set_param respawn 3600 5 5
+	procd_close_instance
+}
+
+stop_service() {
+	local rc=0
+	clear_bypass_request
+	if [ -d "$STATE_DIR" ] && [ ! -L "$STATE_DIR" ]; then
+		rm -f "$STATE_DIR/enabled" "$STATE_DIR/nft_applied" "$STATE_DIR/bypass" "$STATE_DIR/target_refresh_ok" "$STATE_DIR/target_last_refresh" "$STATE_DIR/target_v4_required" "$STATE_DIR/target_v6_required"
+	fi
+	if [ -d "$DAEMON_RUNDIR" ] && [ ! -L "$DAEMON_RUNDIR" ]; then
+		rm -f "$DAEMON_RUNDIR/ready" "$DAEMON_RUNDIR/control.sock"
+	fi
+	if [ -d "$CONFIG_DIR" ] && [ ! -L "$CONFIG_DIR" ]; then
+		rm -f "$CONFIG_FILE"
+	fi
+	"$CTL" clear || rc=1
+	return "$rc"
+}
+
+reload_service() {
+	stop || return 1
+	start
+}

@@ -1,0 +1,152 @@
+#!/bin/sh
+set -eu
+
+RUNDIR=${LOCSPOOF_RUNDIR:-/var/run/locspoofd}
+STATE_DIR=${LOCSPOOF_STATE_DIR:-/var/lib/locspoofd}
+CTL=${LOCSPOOF_CTL:-/usr/bin/locspoofctl}
+HEALTH=${LOCSPOOF_HEALTH:-/usr/bin/locspoof-health}
+FW4=${LOCSPOOF_FW4:-fw4}
+PIDOF=${LOCSPOOF_PIDOF:-pidof}
+LOGGER=${LOCSPOOF_LOGGER:-logger}
+MARKER="$STATE_DIR/enabled"
+NFT_MARKER="$STATE_DIR/nft_applied"
+STARTUP_ATTEMPTS=${LOCSPOOF_STARTUP_ATTEMPTS:-20}
+STARTUP_DELAY=${LOCSPOOF_STARTUP_DELAY:-1}
+
+runtime_dir_safe() {
+	[ -d "$RUNDIR" ] && [ ! -L "$RUNDIR" ]
+}
+
+process_requests() {
+	runtime_dir_safe || { clear_sets; return 1; }
+	if [ -e "$RUNDIR/bypass_on.request" ]; then
+		# Consume only after the root-owned bypass marker is durable. If the
+		# control request fails, retain it for the next watchdog round.
+		if "$CTL" bypass_on >/dev/null 2>&1 && [ -e "$STATE_DIR/bypass" ]; then
+			rm -f "$RUNDIR/bypass_on.request" || return 1
+		else
+			clear_sets
+			return 1
+		fi
+	fi
+	return 0
+}
+
+clear_sets() {
+	if ! "$CTL" clear; then
+		"$LOGGER" -t locspoof-watchdog "unable to clear nft device sets"
+	fi
+		rm -f "$NFT_MARKER"
+}
+
+healthy_daemon() {
+	"$PIDOF" locspoofd >/dev/null 2>&1 || return 1
+	# The override is only used by the deterministic shell tests; production
+	# always requires the real Unix control socket.
+	if [ "${LOCSPOOF_SKIP_SOCKET_CHECK:-0}" != 1 ]; then
+		[ -S "$RUNDIR/control.sock" ] || return 1
+	fi
+	[ -e "$RUNDIR/ready" ] || return 1
+	"$HEALTH" "$RUNDIR/control.sock" >/dev/null 2>&1
+}
+
+write_enabled_marker() {
+	local tmp
+	[ -d "$STATE_DIR" ] && [ ! -L "$STATE_DIR" ] || return 1
+	if [ "$STATE_DIR" = /var/lib/locspoofd ]; then
+		[ "$(stat -c '%U:%G' "$STATE_DIR" 2>/dev/null)" = root:root ] || return 1
+		[ "$(stat -c '%a' "$STATE_DIR" 2>/dev/null)" = 700 ] || return 1
+	fi
+	tmp=$(mktemp "$STATE_DIR/.enabled.XXXXXX") || return 1
+	chmod 0600 "$tmp" || { rm -f "$tmp"; return 1; }
+	printf '1\n' > "$tmp" || { rm -f "$tmp"; return 1; }
+	mv -f "$tmp" "$MARKER" || { rm -f "$tmp"; return 1; }
+}
+
+wait_for_daemon() {
+	local attempt=0
+	while [ "$attempt" -lt "$STARTUP_ATTEMPTS" ]; do
+		healthy_daemon && return 0
+		[ "$STARTUP_DELAY" = 0 ] || sleep "$STARTUP_DELAY"
+		attempt=$((attempt + 1))
+	done
+	return 1
+}
+
+reload_fw4_if_needed() {
+	if "$CTL" sets_ready >/dev/null 2>&1; then
+		return 0
+	fi
+	clear_sets
+	"$FW4" reload >/dev/null 2>&1 || return 1
+	"$CTL" sets_ready >/dev/null 2>&1 || return 1
+	return 0
+}
+
+refresh_targets_if_needed() {
+	# Refresh only when target sets are missing, a previously populated family
+	# disappeared, or the bounded refresh interval elapsed. This avoids
+	# reloading DNS on every watchdog tick while still handling nft timeouts.
+	"$CTL" target_refresh_due >/dev/null 2>&1 || return 0
+	"$CTL" refresh_targets >/dev/null 2>&1 || return 1
+	"$CTL" targets_ready >/dev/null 2>&1
+}
+
+run_once() {
+	[ -e "$MARKER" ] || return 0
+	if ! healthy_daemon; then
+		clear_sets
+		return 1
+	fi
+	if [ -e "$STATE_DIR/bypass" ]; then
+		clear_sets
+		return 0
+	fi
+	# fw4 reload can recreate the table and empty the sets while leaving the
+	# marker behind. Ensure the static sets exist before applying elements.
+	if ! reload_fw4_if_needed; then
+		clear_sets
+		return 1
+	fi
+	if ! refresh_targets_if_needed; then
+		clear_sets
+		return 1
+	fi
+	if [ -e "$NFT_MARKER" ] && ! "$CTL" verify >/dev/null 2>&1; then
+		clear_sets
+	fi
+	if [ ! -e "$NFT_MARKER" ]; then
+		if ! "$CTL" apply >/dev/null 2>&1; then
+			clear_sets
+			return 1
+		fi
+		# apply creates nft_applied only after its own verify. Recheck it here
+		# so a mocked/old control helper cannot make a false-positive state.
+		if [ ! -e "$NFT_MARKER" ] || ! "$CTL" verify >/dev/null 2>&1; then
+			clear_sets
+			return 1
+		fi
+	fi
+	return 0
+}
+
+activate() {
+	[ -e "$MARKER" ] && return 0
+	if ! wait_for_daemon || ! write_enabled_marker || ! run_once; then
+		clear_sets
+		rm -f "$MARKER"
+		return 1
+	fi
+}
+
+if ! activate; then
+	"$LOGGER" -t locspoof-watchdog "daemon activation failed; keeping fail-open"
+	exit 1
+fi
+
+while [ -e "$MARKER" ]; do
+	if ! process_requests; then "$LOGGER" -t locspoof-watchdog "bypass request failed; keeping fail-open"; fi
+	if ! run_once; then "$LOGGER" -t locspoof-watchdog "health or nft verification failed; keeping fail-open"; fi
+	[ "${LOCSPOOF_WATCHDOG_ONCE:-0}" = 1 ] && break
+	sleep 2
+done

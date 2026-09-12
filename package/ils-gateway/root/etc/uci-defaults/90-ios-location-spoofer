@@ -1,0 +1,107 @@
+#!/bin/sh
+
+set -eu
+
+config=ios-location-spoofer
+changed=0
+
+append_legacy_selector() {
+	option=$1
+	list=$2
+	value=$(uci -q get "$config.main.$option" || true)
+	if [ -n "$value" ]; then
+		found=0
+		for current in $(uci -q get "$config.main.$list" || true); do
+			[ "$current" = "$value" ] && found=1
+		done
+		if [ "$found" -eq 0 ]; then
+			uci -q add_list "$config.main.$list=$value"
+			changed=1
+		fi
+	fi
+	if uci -q delete "$config.main.$option"; then
+		changed=1
+	fi
+}
+
+append_legacy_selector device_mac device_macs
+append_legacy_selector device_ip device_ips
+append_legacy_selector device_ipv4 device_ips
+append_legacy_selector device_ipv6 device_ips
+
+device_value_exists() {
+	field=$1
+	wanted=$2
+	uci -q show "$config" | grep -F ".$field='$wanted'" >/dev/null 2>&1
+}
+
+device_index=1
+for mac in $(uci -q get "$config.main.device_macs" || true); do
+	if ! device_value_exists mac "$mac"; then
+		section=$(uci -q add "$config" device)
+		uci -q set "$config.$section.enabled=1"
+		uci -q set "$config.$section.name=设备$device_index"
+		uci -q set "$config.$section.note="
+		uci -q set "$config.$section.mac=$mac"
+		device_index=$((device_index + 1))
+		changed=1
+	fi
+done
+for ip in $(uci -q get "$config.main.device_ips" || true); do
+	if ! device_value_exists ip "$ip"; then
+		section=$(uci -q add "$config" device)
+		uci -q set "$config.$section.enabled=1"
+		uci -q set "$config.$section.name=IP设备$device_index"
+		uci -q set "$config.$section.note="
+		uci -q set "$config.$section.ip=$ip"
+		device_index=$((device_index + 1))
+		changed=1
+	fi
+done
+if uci -q delete "$config.main.device_macs"; then changed=1; fi
+if uci -q delete "$config.main.device_ips"; then changed=1; fi
+
+append_wloc_host() {
+	value=$1
+	found=0
+	for current in $(uci -q get "$config.main.wloc_host" || true); do
+		[ "$current" = "$value" ] && found=1
+	done
+	if [ "$found" -eq 0 ]; then
+		uci -q add_list "$config.main.wloc_host=$value"
+		changed=1
+	fi
+}
+
+append_wloc_host gspe1-ssl.ls.apple.com
+append_wloc_host gs-loc-cn.apple.com
+append_wloc_host bluedot.is.autonavi.com
+append_wloc_host bluedot.is.autonavi.com.gds.alibabadns.com
+
+latitude=$(uci -q get "$config.main.latitude" || true)
+longitude=$(uci -q get "$config.main.longitude" || true)
+
+if [ -n "$latitude" ] && [ -n "$longitude" ]; then
+	uci -q set "$config.location=profile"
+	for option in latitude longitude altitude horizontal_accuracy vertical_accuracy random_radius; do
+		value=$(uci -q get "$config.main.$option" || true)
+		[ -n "$value" ] && uci -q set "$config.location.$option=$value"
+		uci -q delete "$config.main.$option" || true
+	done
+	changed=1
+fi
+
+if uci -q get "$config.location" >/dev/null 2>&1; then
+	if [ -z "$(uci -q get "$config.location.name" || true)" ]; then
+		uci -q set "$config.location.name=默认定位点"
+		changed=1
+	fi
+	if ! uci -q show "$config" | grep -F ".active='1'" >/dev/null 2>&1; then
+		uci -q set "$config.location.active=1"
+		changed=1
+	fi
+fi
+
+[ "$changed" -eq 0 ] || uci -q commit "$config"
+
+exit 0

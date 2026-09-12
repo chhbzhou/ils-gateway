@@ -1,0 +1,62 @@
+#!/bin/sh
+set -e
+
+CONFIG=ios-location-spoofer
+FUNCTIONS_SH=${LOCSPOOF_FUNCTIONS:-/lib/functions.sh}
+SERVICE=${LOCSPOOF_SERVICE:-/etc/init.d/ios-location-spoofer}
+CTL=${LOCSPOOF_CTL:-/usr/bin/locspoofctl}
+
+IPKG_INSTROOT=${IPKG_INSTROOT:-}
+. "$FUNCTIONS_SH"
+
+valid_section() {
+	[ -n "$1" ] || return 1
+	case "$1" in *[!A-Za-z0-9_]*) return 1 ;; esac
+}
+
+find_profile() {
+	if [ "$1" = "$wanted" ]; then found=1; fi
+	return 0
+}
+
+print_active() {
+	local section="$1" active
+	config_get active "$section" active 0
+	if [ "$active" = 1 ]; then printf '%s\n' "$section"; fi
+	return 0
+}
+
+set_profile_active() {
+	local section="$1" value=0
+	[ "$section" = "$wanted" ] && value=1
+	uci -q set "$CONFIG.$section.active=$value"
+}
+
+activate_profile() {
+	wanted=$1
+	valid_section "$wanted" || return 2
+	config_load "$CONFIG"
+	found=0
+	config_foreach find_profile profile
+	[ "$found" = 1 ] || return 2
+	old=$(config_foreach print_active profile)
+	config_foreach set_profile_active profile
+	uci -q commit "$CONFIG"
+	if "$SERVICE" reload; then
+		return 0
+	fi
+	config_load "$CONFIG"
+	wanted=
+	config_foreach set_profile_active profile
+	for previous in $old; do
+		uci -q set "$CONFIG.$previous.active=1"
+	done
+	uci -q commit "$CONFIG"
+	"$SERVICE" reload >/dev/null 2>&1 || true
+	return 1
+}
+
+case "${1:-}" in
+	activate) activate_profile "${2:-}" ;;
+	*) echo "usage: $0 activate <profile-section>" >&2; exit 2 ;;
+esac

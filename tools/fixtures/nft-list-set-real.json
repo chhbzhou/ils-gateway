@@ -1,0 +1,17 @@
+{
+  "nftables": [
+    { "metainfo": { "json_schema_version": 1, "release_name": "nftables" } },
+    {"set": {
+      "family": "inet",
+      "table": "fw4",
+      "name": "ios_enabled_v6",
+      "type": "ipv6_addr",
+      "elem": [
+        "192.0.2.1",
+        { "prefix": { "addr": "2001:db8::", "len": 64 } },
+        { "elem": { "val": "192.0.2.2", "timeout": 300, "expires": 299 } },
+        { "elem": { "val": { "prefix": { "addr": "2001:db8:1::", "len": 64 } }, "timeout": 300 } }
+      ]
+    }}
+  ]
+}

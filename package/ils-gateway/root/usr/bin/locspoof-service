@@ -1,0 +1,48 @@
+#!/bin/sh
+set -eu
+
+CONFIG_FILE=/var/run/locspoofd-config/ios-location-spoofer
+UCI_CONFIG=/etc/config/ios-location-spoofer
+CONTROL_SOCKET=/var/run/locspoofd/control.sock
+
+reload_runtime() {
+	/usr/bin/locspoofctl sync_monitor
+	enabled=$(uci -q get ios-location-spoofer.main.enabled || printf 0)
+	if [ "$enabled" != 1 ]; then
+		/usr/bin/locspoofctl clear
+		return 0
+	fi
+	[ -S "$CONTROL_SOCKET" ] && [ -d "${CONFIG_FILE%/*}" ] && [ ! -L "${CONFIG_FILE%/*}" ] || return 1
+	tmp=$(mktemp "${CONFIG_FILE%/*}/.reload.XXXXXX") || return 1
+	trap 'rm -f "$tmp" "$CONFIG_FILE.reload"' EXIT
+	cat "$UCI_CONFIG" > "$tmp"
+	chown root:locspoofd "$tmp"
+	chmod 0640 "$tmp"
+	mv -f "$tmp" "$CONFIG_FILE.reload"
+	/usr/bin/locspoof-control --socket "$CONTROL_SOCKET" reload >/dev/null
+	mv -f "$CONFIG_FILE.reload" "$CONFIG_FILE"
+	trap - EXIT
+	/usr/bin/locspoofctl refresh_targets
+	/usr/bin/locspoofctl sync_monitor
+	/usr/bin/locspoofctl apply
+}
+
+case "${1:-}" in
+    start|stop|restart)
+        exec /etc/init.d/ios-location-spoofer "$1" ;;
+	reload)
+		reload_runtime ;;
+    bypass_on)
+        exec /usr/bin/locspoofctl bypass_on ;;
+    bypass_off)
+        exec /usr/bin/locspoofctl bypass_off ;;
+    activate_profile)
+        exec /usr/bin/locspoof-profile activate "${2:-}" ;;
+    status)
+        exec /usr/bin/locspoofctl status ;;
+    health)
+        exec /usr/bin/locspoof-health ;;
+    ca)
+        exec cat /etc/locspoof/pki/ca-cert.pem ;;
+    *) echo "invalid action" >&2; exit 2 ;;
+esac

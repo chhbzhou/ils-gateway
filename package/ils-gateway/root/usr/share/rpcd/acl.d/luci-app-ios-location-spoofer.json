@@ -1,0 +1,18 @@
+{
+	"luci-app-ios-location-spoofer": {
+		"description": "Manage iOS Location Spoofer",
+		"read": {
+			"uci": [ "ios-location-spoofer" ],
+			"ubus": { "luci-rpc": [ "getHostHints" ] },
+			"file": {
+				"/usr/bin/locspoof-status": [ "exec" ],
+				"/usr/bin/locspoof-health": [ "exec" ],
+				"/usr/bin/locspoof-elevation": [ "exec" ]
+			}
+		},
+		"write": {
+			"uci": [ "ios-location-spoofer" ],
+			"file": { "/usr/bin/locspoof-service": [ "exec" ] }
+    }
+  }
+}

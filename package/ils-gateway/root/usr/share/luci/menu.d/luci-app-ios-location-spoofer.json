@@ -1,0 +1,13 @@
+{
+  "admin/services/ios-location-spoofer": {
+    "title": "iLS Gateway",
+    "order": 80,
+    "action": {
+      "type": "view",
+      "path": "ios-location-spoofer/overview"
+    },
+    "depends": {
+      "acl": ["luci-app-ios-location-spoofer"]
+    }
+  }
+}

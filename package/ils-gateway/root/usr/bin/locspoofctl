@@ -1,0 +1,738 @@
+#!/bin/sh
+# OpenWrt ash provides `local`, and /lib/functions.sh is supplied by base-files.
+# shellcheck disable=SC3043
+set -e
+
+IPKG_INSTROOT=${IPKG_INSTROOT:-}
+export IPKG_INSTROOT
+
+TABLE=fw4
+FUNCTIONS_SH=${LOCSPOOF_FUNCTIONS:-/lib/functions.sh}
+RUNDIR=${LOCSPOOF_RUNDIR:-/var/run/locspoofd}
+# The daemon-owned directory contains only control.sock and ready.  All
+# policy/desired-state markers are root-owned in a separate directory so a
+# compromised daemon cannot replace files later written by locspoofctl.
+STATE_DIR=${LOCSPOOF_STATE_DIR:-/var/lib/locspoofd}
+HEALTH_CLIENT=${LOCSPOOF_HEALTH_CLIENT:-/usr/bin/locspoof-health}
+# Never permit a configuration/environment override to bypass the router's
+# resolver policy. WLoc lookups must stay on the local dnsmasq listener.
+DNS_SERVER=127.0.0.1
+NSLOOKUP=${LOCSPOOF_NSLOOKUP:-nslookup}
+TIMEOUT=${LOCSPOOF_TIMEOUT:-/usr/bin/locspoof-timeout}
+JSONFILTER=${LOCSPOOF_JSONFILTER:-jsonfilter}
+DNS_TIMEOUT_SECONDS=${LOCSPOOF_DNS_TIMEOUT_SECONDS:-5}
+TARGET_REFRESH_INTERVAL=${LOCSPOOF_TARGET_REFRESH_INTERVAL:-300}
+TARGET_REFRESH_FILE="$STATE_DIR/target_last_refresh"
+TARGET_REFRESH_OK_FILE="$STATE_DIR/target_refresh_ok"
+
+state_path() { printf '%s/%s\n' "$STATE_DIR" "$1"; }
+
+state_dir_safe() {
+	[ -d "$STATE_DIR" ] && [ ! -L "$STATE_DIR" ] || return 1
+	# The production state directory must be root-owned and not writable by
+	# group/other. Test harnesses may provide an isolated override directory.
+	if [ "$STATE_DIR" = /var/lib/locspoofd ] && command -v stat >/dev/null 2>&1; then
+		[ "$(stat -c '%u' "$STATE_DIR" 2>/dev/null)" = 0 ] || return 1
+		case "$(stat -c '%a' "$STATE_DIR" 2>/dev/null)" in ?[2367]*|??[2367]*) return 1 ;; esac
+	fi
+	return 0
+}
+
+write_state_marker() {
+	local name="$1" path tmp
+	state_dir_safe || return 1
+	tmp=$(mktemp "$STATE_DIR/.${name}.XXXXXX" 2>/dev/null) || return 1
+	printf '1\n' > "$tmp" || { rm -f "$tmp"; return 1; }
+	chmod 0600 "$tmp" 2>/dev/null || :
+	# rename replaces a symlink rather than following it.
+	mv -f "$tmp" "$(state_path "$name")" 2>/dev/null || { rm -f "$tmp"; return 1; }
+}
+
+write_state_value() {
+	local name="$1" value="$2" tmp
+	state_dir_safe || return 1
+	tmp=$(mktemp "$STATE_DIR/.${name}.XXXXXX" 2>/dev/null) || return 1
+	printf '%s\n' "$value" > "$tmp" || { rm -f "$tmp"; return 1; }
+	chmod 0600 "$tmp" 2>/dev/null || :
+	mv -f "$tmp" "$(state_path "$name")" 2>/dev/null || { rm -f "$tmp"; return 1; }
+}
+
+remove_state_marker() {
+	state_dir_safe || return 1
+	rm -f "$(state_path "$1")"
+}
+
+_print_list_value() {
+	printf '%s\n' "$1"
+}
+
+_print_device_ips() {
+	local section="$1" enabled ip
+	config_get enabled "$section" enabled 1
+	[ "$enabled" = "1" ] || return 0
+	config_get ip "$section" ip ''
+	[ -n "$ip" ] && printf '%s\n' "$ip"
+	config_list_foreach "$section" ips _print_list_value
+}
+
+_print_device_mac() {
+	local section="$1" enabled mac
+	config_get enabled "$section" enabled 1
+	[ "$enabled" = "1" ] || return 0
+	config_get mac "$section" mac ''
+	[ -n "$mac" ] && printf '%s\n' "$mac"
+}
+
+_print_monitored_device_ips() {
+	local section="$1" ip
+	config_get ip "$section" ip ''
+	[ -n "$ip" ] && printf '%s\n' "$ip"
+	config_list_foreach "$section" ips _print_list_value
+}
+
+_print_monitored_device_mac() {
+	local section="$1" mac
+	config_get mac "$section" mac ''
+	[ -n "$mac" ] && printf '%s\n' "$mac"
+}
+
+cfg_ips() {
+    . "$FUNCTIONS_SH"
+    config_load ios-location-spoofer
+    config_get ip main device_ip ''
+    [ -n "$ip" ] && printf '%s\n' "$ip"
+    config_get ip4 main device_ipv4 ''
+    [ -n "$ip4" ] && printf '%s\n' "$ip4"
+    config_get ip6 main device_ipv6 ''
+    [ -n "$ip6" ] && printf '%s\n' "$ip6"
+    config_list_foreach main device_ips _print_list_value
+	config_foreach _print_device_ips device
+}
+
+cfg_mac() {
+    . "$FUNCTIONS_SH"
+    config_load ios-location-spoofer
+    config_get mac main device_mac ''
+    [ -n "$mac" ] && printf '%s\n' "$mac"
+    config_list_foreach main device_macs _print_list_value
+	config_foreach _print_device_mac device
+}
+
+cfg_monitored_ips() {
+	. "$FUNCTIONS_SH"
+	config_load ios-location-spoofer
+	config_get ip main device_ip ''
+	[ -n "$ip" ] && printf '%s\n' "$ip"
+	config_get ip4 main device_ipv4 ''
+	[ -n "$ip4" ] && printf '%s\n' "$ip4"
+	config_get ip6 main device_ipv6 ''
+	[ -n "$ip6" ] && printf '%s\n' "$ip6"
+	config_list_foreach main device_ips _print_list_value
+	config_foreach _print_monitored_device_ips device
+}
+
+cfg_monitored_mac() {
+	. "$FUNCTIONS_SH"
+	config_load ios-location-spoofer
+	config_get mac main device_mac ''
+	[ -n "$mac" ] && printf '%s\n' "$mac"
+	config_list_foreach main device_macs _print_list_value
+	config_foreach _print_monitored_device_mac device
+}
+
+cfg_hosts() {
+	. "$FUNCTIONS_SH"
+	config_load ios-location-spoofer
+	config_list_foreach main wloc_host _print_list_value
+}
+
+cfg_lan_ifaces() {
+	. "$FUNCTIONS_SH"
+	config_load ios-location-spoofer
+	config_list_foreach main lan_interface _print_list_value
+}
+
+valid_host() {
+	local host
+	host=$(printf '%s' "$1" | tr 'A-Z' 'a-z')
+	case "$host" in
+		gsp-ssl.ls.apple.com|gsp-ssl.ls.apple.com.|gspe1-ssl.ls.apple.com|gspe1-ssl.ls.apple.com.|gs-loc.apple.com|gs-loc.apple.com.|gs-loc-cn.apple.com|gs-loc-cn.apple.com.|bluedot.is.autonavi.com|bluedot.is.autonavi.com.|bluedot.is.autonavi.com.gds.alibabadns.com|bluedot.is.autonavi.com.gds.alibabadns.com.) ;;
+		*) return 1 ;;
+		esac
+	return 0
+}
+
+valid_mac() {
+    case "$1" in
+        [0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+valid_ifname() {
+	# Linux IFNAMSIZ is 16 including the NUL terminator. Restrict to the
+	# portable nft ifname character set and reject quoting/control characters.
+	[ -n "$1" ] && [ "${#1}" -le 15 ] || return 1
+	case "$1" in
+		*[!A-Za-z0-9_.:-]*) return 1 ;;
+		esac
+}
+
+valid_ipv4() {
+	printf '%s\n' "$1" | awk -F. 'NF == 4 { for (i = 1; i <= 4; i++) if ($i !~ /^[0-9]+$/ || $i > 255 || ($i ~ /^0[0-9]+$/)) exit 1; exit 0 } { exit 1 }'
+}
+
+valid_ipv6() {
+	printf '%s\n' "$1" | awk -F: '
+	/^[0-9A-Fa-f:]+$/ {
+		double = index($0, "::")
+		if (double && index(substr($0, double + 2), "::")) exit 1
+		for (i = 1; i <= NF; i++) if (length($i) > 4) exit 1
+		if (!double && NF != 8) exit 1
+		if (double && NF > 8) exit 1
+		exit 0
+	}
+	{ exit 1 }'
+}
+
+clear() {
+	local rc=0 name
+	for name in ios_enabled_v4 ios_enabled_v6 ios_enabled_mac ios_enabled_mac_v6 ios_block_v6 ios_block_mac_v6; do
+		# Always attempt every set. A set that is absent is already fail-open;
+		# only a failed flush of an existing set is a cleanup error.
+		if nft flush set inet "$TABLE" "$name" 2>/dev/null; then
+			continue
+		fi
+		if nft list set inet "$TABLE" "$name" >/dev/null 2>&1; then
+			rc=1
+		fi
+	done
+	return "$rc"
+}
+
+sync_monitor() {
+	local iface mac ip rc=0
+	for iface in ios_monitored_v4 ios_monitored_v6 ios_monitored_mac; do
+		nft flush set inet "$TABLE" "$iface" || rc=1
+	done
+	[ "$rc" = 0 ] || return 1
+
+	while IFS= read -r mac; do
+		[ -n "$mac" ] || continue
+		valid_mac "$mac" || continue
+		nft add element inet "$TABLE" ios_monitored_mac "{ $mac }" >/dev/null 2>&1 || return 1
+	done <<EOF
+$(cfg_monitored_mac | tr 'A-F' 'a-f' | sort -u)
+EOF
+	while IFS= read -r ip; do
+		[ -n "$ip" ] || continue
+		case "$ip" in
+			*:*) valid_ipv6 "$ip" || continue; nft add element inet "$TABLE" ios_monitored_v6 "{ $ip }" >/dev/null 2>&1 || return 1 ;;
+			*) valid_ipv4 "$ip" || continue; nft add element inet "$TABLE" ios_monitored_v4 "{ $ip }" >/dev/null 2>&1 || return 1 ;;
+		esac
+	done <<EOF
+$(cfg_monitored_ips | sort -u)
+EOF
+}
+
+validate_inputs() {
+	if ! cfg_lan_ifaces | awk 'NF { if (seen[$0]++) bad=1 } END { exit bad+0 }'; then
+		echo "duplicate LAN interface" >&2
+		return 1
+	fi
+	while IFS= read -r iface; do
+		[ -n "$iface" ] || continue
+		valid_ifname "$iface" || { echo "invalid LAN interface" >&2; return 1; }
+	done <<EOF
+$(cfg_lan_ifaces)
+EOF
+	if ! cfg_mac | tr 'A-F' 'a-f' | awk 'NF { if (seen[$0]++) bad=1 } END { exit bad+0 }'; then
+		echo "duplicate device MAC" >&2
+		return 1
+	fi
+	if ! cfg_ips | awk 'NF { if (seen[$0]++) bad=1 } END { exit bad+0 }'; then
+		echo "duplicate device IP" >&2
+		return 1
+	fi
+	while IFS= read -r m; do
+		[ -n "$m" ] || continue
+		valid_mac "$m" || { echo "invalid device MAC" >&2; return 1; }
+	done <<EOF
+$(cfg_mac)
+EOF
+	while IFS= read -r ip; do
+		[ -n "$ip" ] || continue
+		case "$ip" in
+			*:*) valid_ipv6 "$ip" || { echo "invalid device IPv6" >&2; return 1; } ;;
+			*) valid_ipv4 "$ip" || { echo "invalid device IPv4" >&2; return 1; } ;;
+		esac
+	done <<EOF
+$(cfg_ips)
+EOF
+}
+
+apply_inner() {
+	ipv6_block=0
+	. "$FUNCTIONS_SH"
+	config_load ios-location-spoofer
+	config_get ipv6_block main ipv6_block 0
+	mac="$(cfg_mac)"
+	ips="$(cfg_ips)"
+	lan="$(cfg_lan_ifaces)"
+	[ -n "$lan" ] || lan=br-lan
+	[ -n "$mac" ] || [ -n "$ips" ] || { echo "no device MAC or IP configured" >&2; return 1; }
+	validate_inputs || return 1
+	clear || return 1
+	# Replace the interface set as part of the same validated policy update so
+	# redirect and enrollment rules cannot be widened by untrusted UCI text.
+	nft flush set inet "$TABLE" ios_lan_ifaces || return 1
+	while IFS= read -r iface; do
+		[ -n "$iface" ] || continue
+		nft add element inet "$TABLE" ios_lan_ifaces "{ \"$iface\" }" || return 1
+	done <<EOF
+$lan
+EOF
+	while IFS= read -r m; do
+		[ -n "$m" ] || continue
+		nft add element inet "$TABLE" ios_enabled_mac "{ $m }" || return 1
+		if [ "$ipv6_block" = "1" ]; then nft add element inet "$TABLE" ios_block_mac_v6 "{ $m }" || return 1; else nft add element inet "$TABLE" ios_enabled_mac_v6 "{ $m }" || return 1; fi
+	done <<EOF
+$(cfg_mac)
+EOF
+	while IFS= read -r ip; do
+		[ -n "$ip" ] || continue
+		case "$ip" in
+			*:*) if [ "$ipv6_block" = "1" ]; then nft add element inet "$TABLE" ios_block_v6 "{ $ip }" 2>/dev/null || return 1; else nft add element inet "$TABLE" ios_enabled_v6 "{ $ip }" 2>/dev/null || return 1; fi ;;
+			*) nft add element inet "$TABLE" ios_enabled_v4 "{ $ip }" 2>/dev/null || return 1 ;;
+        esac
+    done <<EOF
+$(cfg_ips)
+EOF
+}
+
+set_nonempty() {
+	local elements
+	elements="$(set_elements_json "$1" 2>/dev/null)" || return 1
+	printf '%s\n' "$elements" | awk 'NF { found=1 } END { exit(found ? 0 : 1) }'
+}
+
+sets_ready() {
+	local name rc=0
+	for name in ios_enabled_v4 ios_enabled_v6 ios_enabled_mac ios_enabled_mac_v6 ios_block_v6 ios_block_mac_v6 ios_monitored_v4 ios_monitored_v6 ios_monitored_mac ios_online_v4 ios_online_v6 ios_online_mac ios_target_v4 ios_target_v6 ios_lan_ifaces; do
+		nft list set inet "$TABLE" "$name" >/dev/null 2>&1 || rc=1
+	done
+	return "$rc"
+}
+
+set_json_array() {
+	local values
+	values=$(set_elements_json "$1" 2>/dev/null || :)
+	printf '%s\n' "$values" | awk 'BEGIN { printf "[" } NF { if (n++) printf ","; printf "\"%s\"", $0 } END { print "]" }'
+}
+
+target_v4_ready() { nft list set inet "$TABLE" ios_target_v4 >/dev/null 2>&1 && set_nonempty ios_target_v4; }
+target_v6_ready() { nft list set inet "$TABLE" ios_target_v6 >/dev/null 2>&1 && set_nonempty ios_target_v6; }
+targets_ready() {
+	nft list set inet "$TABLE" ios_target_v4 >/dev/null 2>&1 || return 1
+	nft list set inet "$TABLE" ios_target_v6 >/dev/null 2>&1 || return 1
+	target_v4_ready || target_v6_ready
+}
+
+target_refresh_due() {
+	local now last age
+	[ -e "$TARGET_REFRESH_OK_FILE" ] || return 0
+	[ -r "$TARGET_REFRESH_FILE" ] || return 0
+	last=$(cat "$TARGET_REFRESH_FILE" 2>/dev/null || printf 0)
+	now=$(date +%s 2>/dev/null || printf 0)
+	case "$last:$now" in *[!0-9:]*|:*) return 0 ;; esac
+	age=$((now-last))
+	[ "$age" -ge "$TARGET_REFRESH_INTERVAL" ] && return 0
+	# Either family disappearing is a refresh trigger even when the other
+	# family remains populated.
+	[ -s "$(state_path target_v4_required)" ] && ! target_v4_ready && return 0
+	[ -s "$(state_path target_v6_required)" ] && ! target_v6_ready && return 0
+	targets_ready || return 0
+	return 1
+}
+
+target_v4_count() {
+	set_elements_json ios_target_v4 2>/dev/null | awk 'NF { n++ } END { print n+0 }'
+}
+
+target_v6_count() {
+	set_elements_json ios_target_v6 2>/dev/null | awk 'NF { n++ } END { print n+0 }'
+}
+
+resolve_host_local() {
+	local host="$1" output value kind
+	if [ "${TIMEOUT#/}" != "$TIMEOUT" ]; then
+		[ -x "$TIMEOUT" ] || return 1
+	else
+		TIMEOUT=$(command -v "$TIMEOUT" 2>/dev/null) || return 1
+	fi
+	# The bundled helper kills a resolver that exceeds the fixed deadline, so
+	# watchdog health cannot be held indefinitely by a stuck DNS child.
+	if output="$("$TIMEOUT" "$DNS_TIMEOUT_SECONDS" "$NSLOOKUP" "$host" "$DNS_SERVER" 2>/dev/null)"; then
+		:
+	else
+		output=
+	fi
+	# BusyBox and full nslookup use both `Address:` and `Address N:` forms.
+	printf '%s\n' "$output" | tr -d '\r' | awk '
+	function emit(v) {
+		if (v ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) print "4 " v
+		else if (v ~ /:/ && v ~ /^[0-9A-Fa-f:]+$/) print "6 " v
+	}
+	# BusyBox nslookup emits either `Address: A` or `Address N: AAAA`.
+	# The final field is the address in both forms; avoid optional-group EREs
+	# because some BusyBox awk builds do not implement them consistently.
+	/^Address/ { v=$NF; if (v != "127.0.0.1" && v != "::1") emit(v) }
+	'
+}
+
+refresh_targets() {
+	local host line addr kind batch='' v4_file v6_file hosts_file tmpdir
+	local host_ok=0
+	tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/locspoof-refresh.XXXXXX" 2>/dev/null) || return 1
+	v4_file="$tmpdir/v4"
+	v6_file="$tmpdir/v6"
+	hosts_file="$tmpdir/hosts"
+	cleanup_refresh() { rm -rf "$tmpdir"; }
+	fail_refresh() {
+		# Keep the last known-good target sets for atomic refresh semantics, but
+		# remove device interception so stale addresses cannot capture traffic.
+		remove_state_marker target_refresh_ok || :
+		remove_state_marker nft_applied || :
+		if ! clear; then logger -t locspoofctl "unable to clear device sets after target refresh failure"; fi
+		cleanup_refresh
+		return 1
+	}
+	: > "$v4_file"; : > "$v6_file"; : > "$hosts_file"
+	while IFS= read -r host; do
+		[ -n "$host" ] || continue
+		if ! valid_host "$host"; then
+			echo "invalid WLoc host" >&2
+			fail_refresh; return 1
+		fi
+		printf '%s\n' "$host" >> "$hosts_file"
+	done <<EOF
+$(cfg_hosts)
+EOF
+	[ -s "$hosts_file" ] || { echo "no WLoc hosts configured" >&2; fail_refresh; return 1; }
+	while IFS= read -r host; do
+		[ -n "$host" ] || continue
+		if line="$(resolve_host_local "$host")"; then
+			host_ok=0
+			while IFS=' ' read -r kind addr; do
+				[ -n "$addr" ] || continue
+				case "$kind" in
+					4) valid_ipv4 "$addr" || { fail_refresh; return 1; }; printf '%s\n' "$addr" >> "$v4_file"; host_ok=1 ;;
+					6) valid_ipv6 "$addr" || { fail_refresh; return 1; }; printf '%s\n' "$addr" >> "$v6_file"; host_ok=1 ;;
+				esac
+			done <<EOF
+$line
+EOF
+			[ "$host_ok" = 1 ] || { echo "WLoc host returned no usable address: $host" >&2; fail_refresh; return 1; }
+		else
+			echo "WLoc DNS lookup failed: $host" >&2
+			fail_refresh; return 1
+		fi
+	done <<EOF
+$(cat "$hosts_file")
+EOF
+	# Deduplicate exact text before constructing the batch. nft itself parses and
+	# canonicalizes each address, while the complete transaction prevents a
+	# partial replacement if any element is rejected.
+	sort -u "$v4_file" -o "$v4_file"
+	sort -u "$v6_file" -o "$v6_file"
+	batch="$tmpdir/targets.nft"
+	{
+		printf 'flush set inet %s ios_target_v4\n' "$TABLE"
+		printf 'flush set inet %s ios_target_v6\n' "$TABLE"
+		if [ -s "$v4_file" ]; then
+			printf 'add element inet %s ios_target_v4 { ' "$TABLE"
+			awk 'BEGIN { sep="" } { printf "%s%s", sep, $0; sep=", " } END { print " }" }' "$v4_file"
+		fi
+		if [ -s "$v6_file" ]; then
+			printf 'add element inet %s ios_target_v6 { ' "$TABLE"
+			awk 'BEGIN { sep="" } { printf "%s%s", sep, $0; sep=", " } END { print " }" }' "$v6_file"
+		fi
+	} > "$batch"
+	if ! nft -f "$batch" >/dev/null 2>&1; then
+		fail_refresh; return 1
+	fi
+	if ! targets_ready; then
+		fail_refresh; return 1
+	fi
+	if [ -s "$v4_file" ]; then write_state_marker target_v4_required || { fail_refresh; return 1; }; else remove_state_marker target_v4_required || { fail_refresh; return 1; }; fi
+	if [ -s "$v6_file" ]; then write_state_marker target_v6_required || { fail_refresh; return 1; }; else remove_state_marker target_v6_required || { fail_refresh; return 1; }; fi
+	write_state_value target_last_refresh "$(date +%s)" || { fail_refresh; return 1; }
+	write_state_marker target_refresh_ok || { fail_refresh; return 1; }
+	cleanup_refresh
+	return 0
+}
+
+set_elements_json() {
+	local name="$1" json_dir json_file output i max_i entry_count set_name family table raw val addr plen legacy found=0 jsonfilter_cmd elements_raw raw_count parsed_count shape
+	command -v nft >/dev/null 2>&1 || return 3
+	jsonfilter_cmd="$JSONFILTER"
+	if [ ! -x "$jsonfilter_cmd" ]; then
+		jsonfilter_cmd=$(command -v "$JSONFILTER" 2>/dev/null) || return 3
+	fi
+	json_dir="$(mktemp -d "${TMPDIR:-/tmp}/locspoof-set.XXXXXX" 2>/dev/null)" || return 3
+	json_file="$json_dir/input.json"
+	if ! nft -j list set inet "$TABLE" "$name" >"$json_file" 2>/dev/null; then
+		rm -rf "$json_dir"
+		return 2
+	fi
+	# nft JSON starts with a metainfo object and the set object is not
+	# guaranteed to be at index zero.  OpenWrt jsonfilter supports indexed
+	# lookups; walk every item and select the exact inet/fw4/name set.  Only
+	# the nft 1.1 schema (`set.elem`) is accepted.  The former hand-written
+	# `set.elements` fixture was not a valid nft JSON representation and must
+	# not mask parser regressions.
+	if ! "$jsonfilter_cmd" -i "$json_file" -e '@.nftables' >/dev/null 2>&1; then
+		rm -rf "$json_dir"
+		return 3
+	fi
+	: > "${json_file}.values"
+	entry_count=$("$jsonfilter_cmd" -i "$json_file" -e '@.nftables[*].set.name' 2>/dev/null | awk 'NF { n++ } END { print n+0 }')
+	max_i=$((entry_count + 8))
+	[ "$max_i" -lt 16 ] || :
+	i=0
+	while [ "$i" -lt "$max_i" ]; do
+		set_name=$("$jsonfilter_cmd" -i "$json_file" -e "@.nftables[$i].set.name" 2>/dev/null || :)
+		if [ "$set_name" = "$name" ]; then
+			family=$("$jsonfilter_cmd" -i "$json_file" -e "@.nftables[$i].set.family" 2>/dev/null || :)
+			table=$("$jsonfilter_cmd" -i "$json_file" -e "@.nftables[$i].set.table" 2>/dev/null || :)
+			[ "$family" = inet ] || { rm -rf "$json_dir"; return 3; }
+			[ "$table" = "$TABLE" ] || { rm -rf "$json_dir"; return 3; }
+			# `set.elements` was used by an old hand-written fixture and is not
+			# the nftables JSON schema. Reject it explicitly so a malformed
+			# response cannot be mistaken for a valid empty set.
+			legacy=$("$jsonfilter_cmd" -i "$json_file" -e "@.nftables[$i].set.elements" 2>/dev/null || :)
+			[ -z "$legacy" ] || { rm -rf "$json_dir"; return 3; }
+			found=1
+			# Fetch the complete element array once.  The previous implementation
+			# started jsonfilter once for every element and then once per candidate
+			# field, making verify cost grow linearly (and often quadratically) with
+			# set size.  jsonfilter serializes wildcard object values as one JSON
+			# value per line on OpenWrt; parse those bounded values locally so the
+			# number of jsonfilter processes is independent of element count.
+			# nft omits set.elem entirely for a valid empty set, and jsonfilter
+			# reports that missing wildcard path with a non-zero status.  The set
+			# identity and legacy schema have already been validated above, so no
+			# wildcard result here is the canonical empty-set representation.
+			elements_raw=$("$jsonfilter_cmd" -i "$json_file" -e "@.nftables[$i].set.elem[*]" 2>/dev/null || :)
+			printf '%s\n' "$elements_raw" > "${json_file}.raw"
+			raw_count=$(awk 'NF { n++ } END { print n+0 }' "${json_file}.raw")
+			parsed_count=0
+			while IFS= read -r raw; do
+				[ -n "$raw" ] || continue
+				val=; addr=; plen=; shape=
+				# jsonfilter/json-c preserves insignificant whitespace when it
+				# serializes object values. Normalize only whitespace adjacent to
+				# JSON structural tokens; never delete whitespace from a string.
+				shape=$(printf '%s\n' "$raw" | sed \
+					-e 's/[[:space:]]*{[[:space:]]*/{/g' \
+					-e 's/[[:space:]]*}[[:space:]]*/}/g' \
+					-e 's/[[:space:]]*:[[:space:]]*/:/g' \
+					-e 's/[[:space:]]*,[[:space:]]*/,/g')
+				case "$shape" in
+					'{"elem":{"val":"'* )
+						# Metadata scalar. Only nft's value-bearing elem wrapper and
+						# optional timeout/expires metadata are accepted.
+						val=$(printf '%s\n' "$shape" | sed -n 's/.*"val":"\([^"]*\)".*/\1/p')
+						shape=$(printf '%s\n' "$shape" | sed 's/"val":"[^"]*"/"val":"VALUE"/; s/"timeout":[0-9][0-9]*/"timeout":N/; s/"expires":[0-9][0-9]*/"expires":N/')
+						[ -n "$val" ] || { rm -rf "$json_dir"; return 3; }
+						case "$shape" in
+							'{"elem":{"val":"VALUE"}}'|'{"elem":{"val":"VALUE","timeout":N}}'|'{"elem":{"val":"VALUE","expires":N}}'|'{"elem":{"val":"VALUE","timeout":N,"expires":N}}' ) : ;;
+							* ) rm -rf "$json_dir"; return 3 ;;
+						esac
+						printf '%s\n' "$val" >> "${json_file}.values"
+						parsed_count=$((parsed_count + 1))
+						;;
+					'{"prefix":{"addr":"'* )
+						addr=$(printf '%s\n' "$shape" | sed -n 's/.*"addr":"\([^"]*\)".*/\1/p')
+						plen=$(printf '%s\n' "$shape" | sed -n 's/.*"len":\([0-9][0-9]*\).*/\1/p')
+						shape=$(printf '%s\n' "$shape" | sed 's/"addr":"[^"]*"/"addr":"ADDR"/; s/"len":[0-9][0-9]*/"len":N/; s/"timeout":[0-9][0-9]*/"timeout":N/; s/"expires":[0-9][0-9]*/"expires":N/')
+						[ -n "$addr" ] && [ -n "$plen" ] || { rm -rf "$json_dir"; return 3; }
+						case "$shape" in
+							'{"prefix":{"addr":"ADDR","len":N}}'|'{"prefix":{"addr":"ADDR","len":N},"timeout":N}'|'{"prefix":{"addr":"ADDR","len":N},"expires":N}'|'{"prefix":{"addr":"ADDR","len":N},"timeout":N,"expires":N}' ) : ;;
+							* ) rm -rf "$json_dir"; return 3 ;;
+						esac
+						printf '%s/%s\n' "$addr" "$plen" >> "${json_file}.values"
+						parsed_count=$((parsed_count + 1))
+						;;
+					'{"elem":{"val":{"prefix":{"addr":"'* )
+						addr=$(printf '%s\n' "$shape" | sed -n 's/.*"addr":"\([^"]*\)".*/\1/p')
+						plen=$(printf '%s\n' "$shape" | sed -n 's/.*"len":\([0-9][0-9]*\).*/\1/p')
+						shape=$(printf '%s\n' "$shape" | sed 's/"addr":"[^"]*"/"addr":"ADDR"/; s/"len":[0-9][0-9]*/"len":N/; s/"timeout":[0-9][0-9]*/"timeout":N/; s/"expires":[0-9][0-9]*/"expires":N/')
+						[ -n "$addr" ] && [ -n "$plen" ] || { rm -rf "$json_dir"; return 3; }
+						case "$shape" in
+							'{"elem":{"val":{"prefix":{"addr":"ADDR","len":N}}}}'|'{"elem":{"val":{"prefix":{"addr":"ADDR","len":N}},"timeout":N}}'|'{"elem":{"val":{"prefix":{"addr":"ADDR","len":N}},"expires":N}}'|'{"elem":{"val":{"prefix":{"addr":"ADDR","len":N}},"timeout":N,"expires":N}}' ) : ;;
+							* ) rm -rf "$json_dir"; return 3 ;;
+						esac
+						printf '%s/%s\n' "$addr" "$plen" >> "${json_file}.values"
+						parsed_count=$((parsed_count + 1))
+						;;
+					\"*\" )
+						# jsonfilter emits scalar string members without JSON quotes on
+						# OpenWrt. Quoted values are accepted only as a complete string.
+						val=$(printf '%s\n' "$raw" | sed 's/^"//; s/"$//')
+						[ "$val" != "$raw" ] || { rm -rf "$json_dir"; return 3; }
+						[ -n "$val" ] || { rm -rf "$json_dir"; return 3; }
+						printf '%s\n' "$val" >> "${json_file}.values"
+						parsed_count=$((parsed_count + 1))
+						;;
+					null|true|false|\[*|\{* )
+						# Arrays, range objects, booleans, null and incomplete/unknown
+						# objects are never valid set members.
+						rm -rf "$json_dir"; return 3
+						;;
+					* )
+						# Unquoted scalar from jsonfilter. Reject JSON literals and
+						# whitespace/commas that indicate malformed output.
+						case "$raw" in *[[:space:],{}\[\]]*|null|true|false) rm -rf "$json_dir"; return 3 ;; esac
+						printf '%s\n' "$raw" >> "${json_file}.values"
+						parsed_count=$((parsed_count + 1))
+						;;
+				 esac
+			done < "${json_file}.raw"
+			[ "$parsed_count" -eq "$raw_count" ] || { rm -rf "$json_dir"; return 3; }
+			break
+		fi
+		i=$((i + 1))
+	done
+	if [ "$found" -ne 1 ]; then
+		rm -rf "$json_dir"
+		return 2
+	fi
+	output=$(cat "${json_file}.values" 2>/dev/null || :)
+	rm -rf "$json_dir"
+	printf '%s\n' "$output" | awk 'NF { print }'
+}
+
+verify_exact_set() {
+	local name="$1" expected="$2" actual expected_count actual_count csv wanted
+	if ! actual="$(set_elements_json "$name")"; then
+		return 1
+	fi
+	expected_count=$(printf '%s\n' "$expected" | awk 'NF { n++ } END { print n+0 }')
+	actual_count=$(printf '%s\n' "$actual" | awk 'NF { n++ } END { print n+0 }')
+	[ "$actual_count" -eq "$expected_count" ] || return 1
+	[ "$expected_count" -eq 0 ] && return 0
+	csv=$(printf '%s\n' "$expected" | awk 'NF { if (n++) printf ", "; printf "%s", $0 }')
+	# One native query per set lets nft/kernel normalize MAC and IP literals
+	# without spawning a process per expected element.
+	nft get element inet "$TABLE" "$name" "{ $csv }" >/dev/null 2>&1 || return 1
+	return 0
+}
+
+verify() {
+	local ipv6_block=0 mac ip name v4 v6 m m6 b6 bm6 lan
+	sets_ready || { echo "nft sets are unavailable" >&2; return 1; }
+	targets_ready || { echo "nft target sets are unavailable or empty" >&2; return 1; }
+	. "$FUNCTIONS_SH"
+	config_load ios-location-spoofer
+	config_get ipv6_block main ipv6_block 0
+	validate_inputs || return 1
+	m="$(cfg_mac)"; ip="$(cfg_ips)"
+	[ -n "$m" ] || [ -n "$ip" ] || { echo "no device MAC or IP configured" >&2; return 1; }
+	# Build the expected policy sets and compare complete set cardinality, not
+	# only membership. This rejects stale elements left behind after UCI edits.
+	v4=$(printf '%s\n' "$ip" | awk '!/:/ && NF { print }')
+	v6=$(printf '%s\n' "$ip" | awk '/:/ && NF { print }')
+	if [ "$ipv6_block" = "1" ]; then
+		b6="$v6"; bm6="$m"; v6=; m6=
+	else
+		m6="$m"; b6=; bm6=
+	fi
+	verify_exact_set ios_enabled_v4 "$v4" || return 1
+	verify_exact_set ios_enabled_v6 "$v6" || return 1
+	verify_exact_set ios_enabled_mac "$m" || return 1
+	verify_exact_set ios_enabled_mac_v6 "$m6" || return 1
+	verify_exact_set ios_block_v6 "$b6" || return 1
+	verify_exact_set ios_block_mac_v6 "$bm6" || return 1
+	lan="$(cfg_lan_ifaces)"; [ -n "$lan" ] || lan=br-lan
+	verify_exact_set ios_lan_ifaces "$lan" || return 1
+	return 0
+}
+
+apply_and_mark() {
+	if apply_inner && verify; then
+		if ! write_state_marker nft_applied; then
+			if ! clear; then logger -t locspoofctl "unable to clear nft sets after marker failure"; fi
+			remove_state_marker nft_applied || :
+			return 1
+		fi
+		return 0
+	fi
+	if ! clear; then
+		logger -t locspoofctl "apply failed and nft set cleanup reported an error"
+	fi
+	remove_state_marker nft_applied || :
+	return 1
+}
+
+case "${1:-}" in
+	apply) apply_and_mark ;;
+	sync_monitor) sync_monitor ;;
+	verify) verify ;;
+	sets_ready) sets_ready ;;
+	targets_ready) targets_ready ;;
+	refresh_targets) refresh_targets ;;
+	target_refresh_due) target_refresh_due ;;
+    clear) clear ;;
+	status)
+		v4=0; v6=0; mac=0; block=0; mac6=0; blockmac6=0
+		set_nonempty ios_enabled_v4 && v4=1
+		set_nonempty ios_enabled_v6 && v6=1
+		set_nonempty ios_enabled_mac && mac=1
+		set_nonempty ios_enabled_mac_v6 && mac6=1
+		set_nonempty ios_block_mac_v6 && blockmac6=1
+		set_nonempty ios_block_v6 && block=1
+		fp=""; if [ -r /etc/locspoof/pki/ca-cert.pem ] && command -v openssl >/dev/null 2>&1; then fp="$(openssl x509 -in /etc/locspoof/pki/ca-cert.pem -outform DER 2>/dev/null | sha256sum | awk '{print $1}')"; fi
+		desired=0; bypass=0; applied=0; ready=0; daemon_healthy=0
+		[ -e "$(state_path enabled)" ] && desired=1
+		[ -e "$(state_path bypass)" ] && bypass=1
+		[ -e "$(state_path nft_applied)" ] && applied=1
+		[ -e "$RUNDIR/ready" ] && ready=1
+		if [ "$ready" = 1 ] && [ -S "$RUNDIR/control.sock" ] && [ -x "$HEALTH_CLIENT" ]; then
+			"$HEALTH_CLIENT" "$RUNDIR/control.sock" >/dev/null 2>&1 && daemon_healthy=1
+		fi
+		target4=0; target6=0; targets=0
+		target_v4_ready && target4=1
+		target_v6_ready && target6=1
+		if [ "$target4" = 1 ] || [ "$target6" = 1 ]; then targets=1; fi
+		last_refresh=0; [ -r "$TARGET_REFRESH_FILE" ] && last_refresh=$(cat "$TARGET_REFRESH_FILE" 2>/dev/null || printf 0)
+		now=0; now=$(date +%s 2>/dev/null || printf 0)
+	age=0; case "$last_refresh:$now" in *[!0-9:]*|:*) age=0 ;; *) [ "$now" -ge "$last_refresh" ] && age=$((now-last_refresh)) ;; esac
+		refresh_ok=0; [ -e "$TARGET_REFRESH_OK_FILE" ] && refresh_ok=1
+		v4_count=0; v6_count=0
+		v4_count=$(target_v4_count 2>/dev/null || printf 0)
+		v6_count=$(target_v6_count 2>/dev/null || printf 0)
+		verified=0; verify >/dev/null 2>&1 && verified=1
+		effective=0; [ "$desired" = 1 ] && [ "$bypass" = 0 ] && [ "$applied" = 1 ] && [ "$ready" = 1 ] && [ "$daemon_healthy" = 1 ] && [ "$verified" = 1 ] && [ "$targets" = 1 ] && [ "$refresh_ok" = 1 ] && [ "$age" -le "$TARGET_REFRESH_INTERVAL" ] && effective=1
+		printf '{"desired_enabled":%s,"bypass":%s,"nft_applied":%s,"ready":%s,"daemon_healthy":%s,"nft_verified":%s,"target_v4_ready":%s,"target_v6_ready":%s,"targets_ready":%s,"target_last_refresh":%s,"target_refresh_age":%s,"target_refresh_ok":%s,"target_v4_count":%s,"target_v6_count":%s,"effective_enabled":%s,"nft_enabled_v4":%s,"nft_enabled_v6":%s,"nft_enabled_mac":%s,"nft_enabled_mac_v6":%s,"nft_block_v6":%s,"nft_block_mac_v6":%s,"ca_sha256":"%s"}\n' "$desired" "$bypass" "$applied" "$ready" "$daemon_healthy" "$verified" "$target4" "$target6" "$targets" "$last_refresh" "$age" "$refresh_ok" "$v4_count" "$v6_count" "$effective" "$v4" "$v6" "$mac" "$mac6" "$block" "$blockmac6" "$fp" ;;
+	online)
+		printf '{"mac":'; set_json_array ios_online_mac
+		printf ',"ipv4":'; set_json_array ios_online_v4
+		printf ',"ipv6":'; set_json_array ios_online_v6
+		printf '}\n' ;;
+	bypass_on)
+		write_state_marker bypass || exit 1
+		clear_rc=0
+		"$0" clear || clear_rc=1
+		# The marker must never claim an applied policy while bypass is active,
+		# even when one nft set was already removed and another flush failed.
+		remove_state_marker nft_applied || clear_rc=1
+		[ "$clear_rc" = 0 ] || exit 1 ;;
+	bypass_off)
+		remove_state_marker bypass || exit 1
+	remove_state_marker nft_applied || exit 1
+	if [ -e "$(state_path enabled)" ] && [ -e "$RUNDIR/ready" ]; then
+		"$0" apply || exit 1
+	fi ;;
+	*) echo "usage: $0 {apply|sync_monitor|verify|sets_ready|targets_ready|target_refresh_due|refresh_targets|clear|status|online|bypass_on|bypass_off}" >&2; exit 2 ;;
+esac

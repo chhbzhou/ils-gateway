@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+          cache: true
+      - name: Check formatting
+        run: test -z "$(gofmt -l cmd internal)"
+      - name: Test
+        run: go test -count=1 ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Race test
+        run: go test -race ./...
+      - name: Fuzz ClientHello parser
+        run: go test -run=^$ -fuzz=FuzzParseSNI -fuzztime=30s ./internal/proxy
+      - name: Fuzz WLoc parser
+        run: go test -run=^$ -fuzz=FuzzParse -fuzztime=30s ./internal/provider/applewloc
+
+  package-static:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+          cache: true
+      - name: Build CA helper
+        run: go build -o /tmp/locspoof-ca ./cmd/locspoof-ca
+      - name: Prepare executable scripts
+        run: |
+          chmod +x package/ils-gateway/root/etc/init.d/ios-location-spoofer
+          chmod +x package/ils-gateway/root/etc/uci-defaults/90-ios-location-spoofer
+          chmod +x package/ils-gateway/root/usr/bin/*
+      - name: Run package tests
+        run: |
+          sh tools/test-locspoofctl.sh
+          sh tools/test-locspoof-watchdog.sh
+          sh tools/test-init-static.sh
+          sh tools/test-init-lifecycle.sh
+          sh tools/test-package-static.sh
+          sh tools/test-luci-static.sh
+          sh tools/test-profile-manager.sh
+      - name: Verify PKI permissions
+        run: sudo env LOCSPOOF_CA_BIN=/tmp/locspoof-ca sh tools/test-pki-permissions.sh

@@ -1,0 +1,12 @@
+/.artifacts/
+/.idea/
+/.gocache/
+/.gomodcache/
+/.tmp/
+/.tools/
+/bin/
+/build/
+/coverage*
+/review-coverage
+/$cover
+*.ipk

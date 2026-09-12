@@ -1,0 +1,15 @@
+#!/bin/sh
+# Read-only rpcd/LuCI status entry point. Keep service mutations out of the
+# ACL's read capability so a read-only LuCI role cannot start or stop daemons.
+set -eu
+case "${1:-status}" in
+    status) exec /usr/bin/locspoofctl status ;;
+    online) exec /usr/bin/locspoofctl online ;;
+    health) exec /usr/bin/locspoof-health ;;
+    activity)
+		path=/var/lib/locspoofd-activity/activity.json
+		if [ -f "$path" ] && [ ! -L "$path" ] && [ -r "$path" ]; then exec cat "$path"; fi
+		printf '{}\n' ;;
+    ca) exec cat /etc/locspoof/pki/ca-cert.pem ;;
+    *) echo "invalid read-only action" >&2; exit 2 ;;
+esac

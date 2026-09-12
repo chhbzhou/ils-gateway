@@ -1,0 +1,956 @@
+.ils-app {
+    --ils-bg: #f5f7f9;
+    --ils-surface: #ffffff;
+    --ils-surface-muted: #f7f9fa;
+    --ils-text: #18202a;
+    --ils-muted: #66727e;
+    --ils-border: #dfe4e8;
+    --ils-border-strong: #cfd6dd;
+    --ils-primary: #2768a8;
+    --ils-primary-hover: #1f568d;
+    --ils-primary-soft: #eaf3fb;
+    --ils-success: #2f7c47;
+    --ils-success-soft: #edf8f0;
+    --ils-warning: #9a6900;
+    --ils-warning-soft: #fff8df;
+    --ils-danger: #b53c45;
+    --ils-device-type: #526b84;
+    --ils-shadow: rgba(30, 42, 54, 0.18);
+    width: 100%;
+    max-width: 1480px;
+    margin: 0 auto;
+    overflow: hidden;
+    color: var(--ils-text);
+    background: var(--ils-bg);
+    border: 1px solid var(--ils-border);
+    border-radius: 6px;
+    font-family: Inter, "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    letter-spacing: 0;
+}
+
+.ils-app,
+.ils-app * {
+    box-sizing: border-box;
+    letter-spacing: 0;
+}
+
+.ils-app h1,
+.ils-app h2,
+.ils-app h3,
+.ils-app p,
+.ils-app dl,
+.ils-app dd {
+    margin: 0;
+}
+
+.ils-app h1 {
+    font-size: 19px;
+    font-weight: 500;
+}
+
+.ils-app h2 {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.ils-app h3 {
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.ils-topbar,
+.ils-title-group,
+.ils-actions,
+.ils-status-strip,
+.ils-status-main,
+.ils-status-meta,
+.ils-section-head,
+.ils-section-title,
+.ils-compact-heading,
+.ils-compact-meta,
+.ils-compact-actions,
+.ils-modal-head,
+.ils-modal-footer,
+.ils-drawer-head {
+    display: flex;
+    align-items: center;
+}
+
+.ils-topbar {
+    min-height: 70px;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 14px 22px;
+    color: var(--ils-text);
+    background: var(--ils-surface);
+    border-bottom: 1px solid var(--ils-border);
+}
+
+.ils-topbar::after {
+    content: none;
+}
+
+.ils-topbar h1 {
+    color: var(--ils-text);
+}
+
+.ils-title-group {
+    min-width: 0;
+    gap: 11px;
+}
+
+.ils-title-mark {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    color: var(--ils-primary);
+    background: var(--ils-primary-soft);
+    border-radius: 6px;
+}
+
+.ils-title-mark svg,
+.ils-button svg,
+.ils-icon-button svg,
+.ils-link-button svg,
+.ils-menu-item svg,
+.ils-status-meta svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+}
+
+.ils-title-mark svg {
+    width: 19px;
+    height: 19px;
+}
+
+.ils-actions {
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ils-button,
+.ils-icon-button,
+.ils-link-button,
+.ils-menu-item {
+    font: inherit;
+    cursor: pointer;
+}
+
+.ils-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 34px;
+    padding: 7px 11px;
+    color: var(--ils-text);
+    background: var(--ils-surface);
+    border: 1px solid var(--ils-border-strong);
+    border-radius: 5px;
+    text-decoration: none;
+}
+
+.ils-button:hover,
+.ils-icon-button:hover,
+.ils-menu-item:hover:not(:disabled) {
+    background: var(--ils-surface-muted);
+}
+
+.ils-button-primary,
+.ils-app a.ils-button-primary,
+.ils-app a.ils-button-primary:link,
+.ils-app a.ils-button-primary:visited {
+    color: #ffffff !important;
+    background: var(--ils-primary);
+    border-color: var(--ils-primary);
+    text-decoration: none !important;
+}
+
+.ils-button-primary:hover,
+.ils-button-primary:focus,
+.ils-button-primary:active,
+.ils-app a.ils-button-primary:hover,
+.ils-app a.ils-button-primary:focus,
+.ils-app a.ils-button-primary:active {
+    color: #ffffff !important;
+    background: var(--ils-primary-hover);
+    border-color: var(--ils-primary-hover);
+    text-decoration: none !important;
+}
+
+.ils-icon-button {
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    color: var(--ils-muted);
+    background: var(--ils-surface);
+    border: 1px solid var(--ils-border-strong);
+    border-radius: 5px;
+}
+
+.ils-button:disabled,
+.ils-icon-button:disabled,
+.ils-link-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.ils-status-strip {
+    justify-content: space-between;
+    gap: 20px;
+    padding: 13px 22px;
+    background: var(--ils-surface);
+    border-bottom: 1px solid var(--ils-border);
+}
+
+.ils-status-strip.is-enabled {
+    background: var(--ils-surface);
+    border-bottom-color: var(--ils-border);
+}
+
+.ils-status-main {
+    min-width: 0;
+    gap: 10px;
+}
+
+.ils-status-dot {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 auto;
+    background: var(--ils-warning);
+    border-radius: 50%;
+}
+
+.ils-status-strip.is-enabled .ils-status-dot {
+    background: var(--ils-success);
+}
+
+.ils-status-copy {
+    min-width: 0;
+}
+
+.ils-status-copy strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.ils-status-copy span {
+    display: block;
+    margin-top: 2px;
+    color: var(--ils-muted);
+    font-size: 13px;
+}
+
+.ils-status-meta {
+    gap: 18px;
+    color: var(--ils-muted);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.ils-status-meta > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.ils-switch {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 22px;
+    flex: 0 0 auto;
+}
+
+.ils-switch input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.ils-switch-track {
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+    background: #a9b2bb;
+    border-radius: 11px;
+    transition: background 160ms ease;
+}
+
+.ils-switch-track::after {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    content: "";
+    background: #ffffff;
+    border-radius: 50%;
+    transition: transform 160ms ease;
+}
+
+.ils-switch input:focus-visible + .ils-switch-track {
+    outline: 2px solid var(--ils-primary);
+    outline-offset: 2px;
+}
+
+.ils-switch input:checked + .ils-switch-track {
+    background: var(--ils-success);
+}
+
+.ils-switch input:checked + .ils-switch-track::after {
+    transform: translateX(16px);
+}
+
+.ils-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    background: var(--ils-surface);
+}
+
+.ils-pane {
+    min-width: 0;
+    padding: 18px 22px 20px;
+}
+
+.ils-pane + .ils-pane {
+    border-left: 1px solid var(--ils-border);
+}
+
+.ils-section-head {
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.ils-section-title {
+    gap: 8px;
+}
+
+.ils-count {
+    color: var(--ils-muted);
+    font-size: 13px;
+}
+
+.ils-compact-list {
+    border-top: 1px solid var(--ils-border);
+}
+
+.ils-compact-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    min-height: 76px;
+    padding: 11px 2px;
+    border-bottom: 1px solid var(--ils-border);
+}
+
+.ils-compact-row:last-child {
+    border-bottom: 0;
+}
+
+.ils-compact-main {
+    min-width: 0;
+}
+
+.ils-compact-heading {
+    min-width: 0;
+    gap: 8px;
+}
+
+.ils-primary-text {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 14px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ils-compact-meta {
+    min-width: 0;
+    gap: 9px;
+    margin-top: 5px;
+    color: var(--ils-muted);
+    font-size: 13px;
+}
+
+.ils-compact-meta span,
+.ils-compact-meta code {
+    display: inline;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: inherit;
+    font-size: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ils-compact-meta code,
+.ils-field code,
+.ils-diagnostic-list code {
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    font-family: "Cascadia Code", Consolas, monospace;
+}
+
+.ils-compact-meta code {
+    font-size: 14px;
+}
+
+.ils-profile-meta code {
+    flex: 0 0 auto;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+.ils-meta-divider {
+    width: 1px;
+    height: 12px;
+    flex: 0 0 auto;
+    background: var(--ils-border-strong);
+}
+
+.ils-current-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--ils-success);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.ils-current-label::before {
+    width: 6px;
+    height: 6px;
+    content: "";
+    background: currentColor;
+    border-radius: 50%;
+}
+
+.ils-online-label,
+.ils-device-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.ils-online-label {
+    color: var(--ils-success);
+}
+
+.ils-online-label.is-offline {
+    color: var(--ils-muted);
+}
+
+.ils-device-type {
+    color: var(--ils-device-type);
+}
+
+.ils-device-type svg {
+    width: 14px;
+    height: 14px;
+}
+
+.ils-last-modified {
+    color: var(--ils-muted) !important;
+}
+
+.ils-compact-actions {
+    justify-content: flex-end;
+    gap: 3px;
+}
+
+.ils-link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 5px 7px;
+    color: var(--ils-primary);
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+}
+
+.ils-link-button:hover {
+    background: var(--ils-primary-soft);
+}
+
+.ils-link-button-danger {
+    color: var(--ils-danger);
+}
+
+.ils-empty {
+    padding: 28px 8px;
+    color: var(--ils-muted);
+    font-size: 14px;
+    text-align: center;
+}
+
+.ils-menu {
+    position: absolute;
+    z-index: 20;
+    top: 60px;
+    right: 18px;
+    display: none;
+    width: 205px;
+    padding: 5px;
+    background: var(--ils-surface);
+    border: 1px solid var(--ils-border-strong);
+    border-radius: 6px;
+    box-shadow: 0 10px 24px var(--ils-shadow);
+}
+
+.ils-app {
+    position: relative;
+}
+
+.ils-menu.is-open {
+    display: block;
+}
+
+.ils-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    min-height: 34px;
+    padding: 7px 9px;
+    color: var(--ils-text);
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+}
+
+.ils-modal-overlay,
+.ils-drawer-overlay {
+    position: fixed;
+    z-index: 2000;
+    inset: 0;
+    display: flex;
+    background: rgba(14, 19, 24, 0.4);
+}
+
+.ils-modal-overlay {
+    align-items: flex-start;
+    justify-content: center;
+    padding: 9vh 20px 24px;
+}
+
+.ils-modal {
+    width: min(680px, 100%);
+    max-height: 82vh;
+    overflow: hidden;
+    background: var(--ils-surface);
+    border: 1px solid var(--ils-border-strong);
+    border-radius: 6px;
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+}
+
+.ils-modal-wide {
+    width: min(760px, 100%);
+}
+
+.ils-modal-head,
+.ils-modal-footer {
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+}
+
+.ils-modal-head {
+    border-bottom: 1px solid var(--ils-border);
+}
+
+.ils-modal-body {
+    max-height: calc(82vh - 126px);
+    padding: 16px;
+    overflow-y: auto;
+}
+
+.ils-modal-footer {
+    justify-content: flex-end;
+    background: var(--ils-surface-muted);
+    border-top: 1px solid var(--ils-border);
+}
+
+.ils-dialog-copy {
+    color: var(--ils-muted);
+    font-size: 14px;
+    line-height: 1.65;
+}
+
+.ils-settings-grid,
+.ils-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.ils-settings-grid {
+    gap: 1px;
+    overflow: hidden;
+    background: var(--ils-border);
+    border: 1px solid var(--ils-border);
+    border-radius: 5px;
+}
+
+.ils-settings-grid-single {
+    grid-template-columns: 1fr;
+}
+
+.ils-setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 64px;
+    padding: 12px 14px;
+    background: var(--ils-surface);
+}
+
+.ils-setting-copy span {
+    display: block;
+    margin-top: 3px;
+    color: var(--ils-muted);
+    font-size: 13px;
+}
+
+.ils-toggle-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 64px;
+    padding: 0 2px;
+}
+
+.ils-field {
+    min-width: 0;
+}
+
+.ils-field-full {
+    grid-column: 1 / -1;
+}
+
+.ils-field label {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--ils-muted);
+    font-size: 13px;
+}
+
+.ils-field input,
+.ils-field textarea,
+.ils-field select {
+    width: 100%;
+    min-height: 36px;
+    padding: 7px 9px;
+    color: var(--ils-text);
+    background: var(--ils-surface);
+    border: 1px solid var(--ils-border-strong);
+    border-radius: 4px;
+    font: inherit;
+}
+
+.ils-field textarea {
+    min-height: 82px;
+    resize: vertical;
+}
+
+.ils-field input:focus,
+.ils-field textarea:focus,
+.ils-field select:focus {
+    border-color: var(--ils-primary);
+    outline: 2px solid color-mix(in srgb, var(--ils-primary) 20%, transparent);
+}
+
+.ils-input-action {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+}
+
+.ils-field .ils-input-action input {
+    min-width: 0;
+    border-radius: 4px 0 0 4px;
+}
+
+.ils-input-action-button {
+    min-width: 76px;
+    margin-left: -1px;
+    border-radius: 0 4px 4px 0;
+}
+
+.ils-inline-message {
+    display: block;
+    min-height: 18px;
+    margin-top: 4px;
+    color: var(--ils-muted);
+    font-size: 12px;
+}
+
+.ils-inline-message.is-error {
+    color: var(--ils-danger);
+}
+
+.ils-inline-message.is-success {
+    color: var(--ils-success);
+}
+
+.ils-form-error {
+    display: none;
+    margin-top: 10px;
+    color: var(--ils-danger);
+    font-size: 13px;
+}
+
+.ils-form-error.is-visible {
+    display: block;
+}
+
+.ils-certificate-layout {
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr);
+    align-items: center;
+    gap: 24px;
+}
+
+.ils-qr-box {
+    display: grid;
+    place-items: center;
+    width: 210px;
+    height: 210px;
+    padding: 13px;
+    background: #ffffff;
+    border: 1px solid var(--ils-border-strong);
+    border-radius: 6px;
+}
+
+.ils-qr-box img,
+.ils-qr-box canvas {
+    display: block;
+    width: 184px !important;
+    height: 184px !important;
+}
+
+.ils-install-steps {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0 16px;
+    padding: 0;
+    list-style: none;
+    counter-reset: install-step;
+}
+
+.ils-install-steps li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ils-muted);
+    font-size: 13px;
+    counter-increment: install-step;
+}
+
+.ils-install-steps li::before {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    content: counter(install-step);
+    color: var(--ils-primary);
+    background: var(--ils-primary-soft);
+    border-radius: 50%;
+}
+
+.ils-url-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 7px;
+}
+
+.ils-drawer-overlay {
+    justify-content: flex-end;
+}
+
+.ils-drawer {
+    width: min(430px, 94%);
+    height: 100%;
+    padding: 20px;
+    overflow-y: auto;
+    background: var(--ils-surface);
+    border-left: 1px solid var(--ils-border-strong);
+    box-shadow: -12px 0 26px rgba(0, 0, 0, 0.16);
+}
+
+.ils-drawer-head {
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.ils-diagnostic-group {
+    padding: 14px 0;
+    border-top: 1px solid var(--ils-border);
+}
+
+.ils-diagnostic-group:first-of-type {
+    border-top: 0;
+}
+
+.ils-diagnostic-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 16px;
+    margin-top: 11px;
+    font-size: 14px;
+}
+
+.ils-diagnostic-list dt {
+    color: var(--ils-muted);
+}
+
+.ils-diagnostic-list dd {
+    max-width: 240px;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.ils-ok {
+    color: var(--ils-success);
+}
+
+body.ils-location-page footer {
+    text-align: center !important;
+}
+
+@media (min-width: 1280px) {
+    .ils-topbar,
+    .ils-status-strip,
+    .ils-pane {
+        padding-right: 28px;
+        padding-left: 28px;
+    }
+
+    .ils-workspace {
+        grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    }
+}
+
+@media (max-width: 760px) {
+    .ils-topbar,
+    .ils-status-strip {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .ils-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .ils-status-meta {
+        flex-wrap: wrap;
+        white-space: normal;
+    }
+
+    .ils-workspace,
+    .ils-settings-grid,
+    .ils-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ils-pane + .ils-pane {
+        border-top: 1px solid var(--ils-border);
+        border-left: 0;
+    }
+
+    .ils-field-full {
+        grid-column: auto;
+    }
+
+    .ils-certificate-layout {
+        grid-template-columns: 1fr;
+        justify-items: center;
+    }
+
+    .ils-certificate-copy {
+        width: 100%;
+    }
+
+    .ils-install-steps {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .ils-topbar,
+    .ils-status-strip,
+    .ils-pane {
+        padding-right: 14px;
+        padding-left: 14px;
+    }
+
+    .ils-actions .ils-button {
+        flex: 1 1 calc(50% - 4px);
+    }
+
+    .ils-compact-row {
+        grid-template-columns: 1fr;
+    }
+
+    .ils-compact-meta {
+        display: grid;
+        grid-template-columns: max-content 1px minmax(0, 1fr);
+        row-gap: 5px;
+    }
+
+    .ils-compact-meta code {
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .ils-compact-meta > code:only-of-type,
+    .ils-last-modified {
+        grid-column: 1 / -1;
+    }
+
+    .ils-meta-divider-before-modified {
+        display: none;
+    }
+
+    .ils-compact-actions {
+        justify-content: flex-start;
+    }
+
+    .ils-modal-overlay {
+        padding: 16px 10px;
+    }
+
+    .ils-modal {
+        max-height: calc(100vh - 32px);
+    }
+
+    .ils-modal-body {
+        max-height: calc(100vh - 158px);
+    }
+}
