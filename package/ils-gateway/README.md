@@ -10,6 +10,10 @@ This directory contains the complete OpenWrt integration and builds the Go
 daemon, CA helper, and control health client through the official OpenWrt Go
 package infrastructure.
 
+The LuCI interface ships English and Simplified Chinese text in the same IPK.
+It follows the configured LuCI language or the browser preference when LuCI is
+set to automatic language selection.
+
 The package declares all external runtime tools it invokes: `firewall4`,
 `nftables-json`, `jsonfilter`, `openssl-util`, `rpcd`, `rpcd-mod-ucode`,
 `coreutils-stat`, `shadow-su`, `ca-bundle`, and `luci-base`. DNS lookups use the

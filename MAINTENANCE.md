@@ -19,6 +19,10 @@ This file records the stable project structure and release rules for iLS Gateway
   location with `ILS_BUILD_HOME`.
 - Generated binaries, SDKs, IPKs, coverage files, IDE state, and private
   configuration must never be committed.
+- LuCI UI strings use the existing Chinese message IDs in `overview.js` and the
+  bundled `po/en/ils-gateway.po` catalog for English. LuCI selects English or
+  Simplified Chinese from its configured language or the browser's
+  `Accept-Language`; keep both catalogs complete when changing UI copy.
 
 ## Runtime boundaries
 

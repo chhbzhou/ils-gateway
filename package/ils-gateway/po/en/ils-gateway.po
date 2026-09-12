@@ -1,0 +1,430 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: iLS Gateway 43\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "%d 个"
+msgstr "%d"
+
+msgid "%d 台"
+msgstr "%d devices"
+
+msgid "%d 台授权设备"
+msgstr "%d authorized devices"
+
+msgid "安装 iPhone CA 证书"
+msgstr "Install iPhone CA certificate"
+
+msgid "安装地址"
+msgstr "Installation URL"
+
+msgid "安装描述文件"
+msgstr "Install the profile"
+
+msgid "安装证书"
+msgstr "Install certificate"
+
+msgid "保存"
+msgstr "Save"
+
+msgid "保存定位点"
+msgstr "Save location"
+
+msgid "保存设备"
+msgstr "Save device"
+
+msgid "保存设置"
+msgstr "Save settings"
+
+msgid "备注"
+msgstr "Notes"
+
+msgid "避免 IPv6 绕过定位处理"
+msgstr "Prevent IPv6 from bypassing location handling"
+
+msgid "编辑"
+msgstr "Edit"
+
+msgid "编辑定位点"
+msgstr "Edit location"
+
+msgid "编辑设备"
+msgstr "Edit device"
+
+msgid "补全"
+msgstr "Look up"
+
+msgid "不可用"
+msgstr "Unavailable"
+
+msgid "操作失败"
+msgstr "Operation failed"
+
+msgid "垂直精度"
+msgstr "Vertical accuracy"
+
+msgid "单次响应最大字节数"
+msgstr "Maximum response bytes"
+
+msgid "当前定位"
+msgstr "Current location"
+
+msgid "当前定位点：%s，正在处理 %d 台授权设备"
+msgstr "Current location: %s; processing %d authorized devices"
+
+msgid "当前定位点不能删除"
+msgstr "The current location cannot be deleted"
+
+msgid "电脑"
+msgstr "Computer"
+
+msgid "定位点"
+msgstr "Locations"
+
+msgid "定位服务启动超时"
+msgstr "Location service start timed out"
+
+msgid "定位服务启动异常"
+msgstr "Location service failed to start"
+
+msgid "定位服务停止超时"
+msgstr "Location service stop timed out"
+
+msgid "定位服务已停用"
+msgstr "Location service is disabled"
+
+msgid "定位服务运行中"
+msgstr "Location service is running"
+
+msgid "服务设置"
+msgstr "Service settings"
+
+msgid "复制安装地址"
+msgstr "Copy installation URL"
+
+msgid "更多操作"
+msgstr "More actions"
+
+msgid "固定 IP 格式不正确"
+msgstr "Invalid static IP address"
+
+msgid "固定 IP（可选）"
+msgstr "Static IP (optional)"
+
+msgid "关闭"
+msgstr "Close"
+
+msgid "规则校验"
+msgstr "Rule verification"
+
+msgid "还没有定位点"
+msgstr "No locations yet"
+
+msgid "还没有授权设备"
+msgstr "No authorized devices yet"
+
+msgid "海拔"
+msgstr "Altitude"
+
+msgid "海拔查询失败"
+msgstr "Altitude lookup failed"
+
+msgid "海拔服务返回了无效数据"
+msgstr "The altitude service returned invalid data"
+
+msgid "活动连接"
+msgstr "Active connections"
+
+msgid "技术诊断"
+msgstr "Diagnostics"
+
+msgid "将重新加载“%s”并刷新授权设备。"
+msgstr "Reload “%s” and refresh authorized devices."
+
+msgid "仅在定位服务开启时生效；停用后不再处理该设备定位"
+msgstr "Effective only while the location service is enabled; disabled devices are not processed"
+
+msgid "经度"
+msgstr "Longitude"
+
+msgid "精度或海拔格式不正确"
+msgstr "Invalid accuracy or altitude"
+
+msgid "局域网接口"
+msgstr "LAN interfaces"
+
+msgid "局域网接口（每行一个）"
+msgstr "LAN interfaces (one per line)"
+
+msgid "局域网接口格式不正确"
+msgstr "Invalid LAN interface"
+
+msgid "离线"
+msgstr "Offline"
+
+msgid "例如：出差测试"
+msgstr "Example: Travel test"
+
+msgid "例如：家人设备"
+msgstr "Example: Family device"
+
+msgid "例如：我的 iPhone"
+msgstr "Example: My iPhone"
+
+msgid "例如：香港"
+msgstr "Example: Hong Kong"
+
+msgid "连接数和字节数必须为正整数"
+msgstr "Connection and byte limits must be positive integers"
+
+msgid "流量拦截"
+msgstr "Traffic interception"
+
+msgid "名称"
+msgstr "Name"
+
+msgid "目标地址"
+msgstr "Target addresses"
+
+msgid "配置状态"
+msgstr "Configuration"
+
+msgid "启用此设备"
+msgstr "Enable this device"
+
+msgid "启用定位服务"
+msgstr "Enable location service"
+
+msgid "启用设备"
+msgstr "Enable device"
+
+msgid "切换定位点"
+msgstr "Switch location"
+
+msgid "请填写定位点名称"
+msgstr "Enter a location name"
+
+msgid "请填写设备名称"
+msgstr "Enter a device name"
+
+msgid "请先填写有效的经纬度"
+msgstr "Enter valid latitude and longitude first"
+
+msgid "请至少填写 Wi-Fi MAC 或固定 IP"
+msgstr "Enter at least a Wi-Fi MAC or static IP"
+
+msgid "取消"
+msgstr "Cancel"
+
+msgid "全局缓冲区上限"
+msgstr "Global buffer limit"
+
+msgid "确定切换到“%s”并刷新授权设备吗？"
+msgstr "Switch to “%s” and refresh authorized devices?"
+
+msgid "确定删除“%s”吗？此操作会立即生效。"
+msgstr "Delete “%s”? This takes effect immediately."
+
+msgid "确定删除“%s”吗？该设备会立即停止使用模拟定位。"
+msgstr "Delete “%s”? The device will immediately stop using the simulated location."
+
+msgid "确认配置失败，系统已自动回滚"
+msgstr "Configuration confirmation failed; changes were rolled back automatically"
+
+msgid "确认删除"
+msgstr "Delete"
+
+msgid "确认使用"
+msgstr "Use location"
+
+msgid "确认重启"
+msgstr "Restart"
+
+msgid "删除"
+msgstr "Delete"
+
+msgid "删除定位点"
+msgstr "Delete location"
+
+msgid "删除设备"
+msgstr "Delete device"
+
+msgid "上游 SOCKS5 代理"
+msgstr "Upstream SOCKS5 proxy"
+
+msgid "设备名称"
+msgstr "Device name"
+
+msgid "设置"
+msgstr "Settings"
+
+msgid "使用"
+msgstr "Use"
+
+msgid "守护进程"
+msgstr "Daemon"
+
+msgid "授权设备"
+msgstr "Authorized devices"
+
+msgid "水平精度"
+msgstr "Horizontal accuracy"
+
+msgid "随机范围（米）"
+msgstr "Random radius (meters)"
+
+msgid "添加"
+msgstr "Add"
+
+msgid "添加定位点"
+msgstr "Add location"
+
+msgid "添加设备"
+msgstr "Add device"
+
+msgid "停用定位服务"
+msgstr "Disable location service"
+
+msgid "停用设备"
+msgstr "Disable device"
+
+msgid "通过"
+msgstr "Passed"
+
+msgid "纬度"
+msgstr "Latitude"
+
+msgid "纬度或经度超出有效范围"
+msgstr "Latitude or longitude is out of range"
+
+msgid "未启用"
+msgstr "Not enabled"
+
+msgid "未设置"
+msgstr "Not set"
+
+msgid "未通过"
+msgstr "Failed"
+
+msgid "未知设备"
+msgstr "Unknown device"
+
+msgid "无"
+msgstr "None"
+
+msgid "下载描述文件"
+msgstr "Download the profile"
+
+msgid "信任根证书"
+msgstr "Trust the root certificate"
+
+msgid "已补全"
+msgstr "Completed"
+
+msgid "已启用"
+msgstr "Enabled"
+
+msgid "已停用"
+msgstr "Disabled"
+
+msgid "已停止"
+msgstr "Stopped"
+
+msgid "已修改响应"
+msgstr "Modified responses"
+
+msgid "已选定位点：%s，当前不会修改设备定位"
+msgstr "Selected location: %s; device locations are not currently modified"
+
+msgid "应用配置失败："
+msgstr "Failed to apply configuration: "
+
+msgid "有效"
+msgstr "Valid"
+
+msgid "运行中"
+msgstr "Running"
+
+msgid "运行状态"
+msgstr "Runtime status"
+
+msgid "在此设备下载"
+msgstr "Download on this device"
+
+msgid "在线"
+msgstr "Online"
+
+msgid "暂无记录"
+msgstr "No record"
+
+msgid "诊断"
+msgstr "Diagnostics"
+
+msgid "证书安装二维码"
+msgstr "Certificate installation QR code"
+
+msgid "证书与网络"
+msgstr "Certificates and network"
+
+msgid "重启定位服务"
+msgstr "Restart location service"
+
+msgid "重启会短暂中断授权设备的定位请求，确定继续吗？"
+msgstr "Restarting briefly interrupts location requests from authorized devices. Continue?"
+
+msgid "重新应用"
+msgstr "Reapply"
+
+msgid "重新应用定位点"
+msgstr "Reapply location"
+
+msgid "阻断授权设备 IPv6"
+msgstr "Block IPv6 for authorized devices"
+
+msgid "最大并发连接数"
+msgstr "Maximum concurrent connections"
+
+msgid "最近成功：%s"
+msgstr "Last successful: %s"
+
+msgid "最近错误"
+msgstr "Last error"
+
+msgid "最近统计"
+msgstr "Recent statistics"
+
+msgid "最近修改位置点"
+msgstr "Locations modified in last response"
+
+msgid "Android 手机"
+msgstr "Android phone"
+
+msgid "Apple 定位服务域名（每行一个）"
+msgstr "Apple location service hosts (one per line)"
+
+msgid "Apple 定位服务域名格式不正确"
+msgstr "Invalid Apple location service host"
+
+msgid "Apple 设备"
+msgstr "Apple device"
+
+msgid "CA 状态"
+msgstr "CA status"
+
+msgid "iLS 定位管理"
+msgstr "iLS Location Manager"
+
+msgid "iPhone / iPad"
+msgstr "iPhone / iPad"
+
+msgid "Wi-Fi MAC"
+msgstr "Wi-Fi MAC"
+
+msgid "Wi-Fi MAC 格式不正确"
+msgstr "Invalid Wi-Fi MAC"
+
+msgid "WLoc 请求"
+msgstr "WLoc requests"

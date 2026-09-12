@@ -2,6 +2,11 @@
 
 All notable user-facing changes are documented here.
 
+## 43 - 2026-09-13
+
+- Add automatic English and Simplified Chinese selection to the LuCI interface.
+- Add a complete Simplified Chinese project README.
+
 ## 42 - 2026-09-13
 
 - Prepare the repository for public collaboration and reproducible builds.

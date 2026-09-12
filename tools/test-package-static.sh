@@ -40,7 +40,10 @@ grep -F 'USERID:=locspoofd:locspoofd' "$makefile" >/dev/null || {
 grep -F 'PROVIDES:=luci-app-ios-location-spoofer' "$makefile" >/dev/null
 grep -F 'CONFLICTS:=luci-app-ios-location-spoofer' "$makefile" >/dev/null
 grep -F '$(eval $(call BuildPackage,ils-gateway))' "$makefile" >/dev/null
-grep -F 'PKG_RELEASE:=42' "$makefile" >/dev/null
+grep -F 'PKG_RELEASE:=43' "$makefile" >/dev/null
+grep -F 'PKG_BUILD_DEPENDS:=golang/host luci-base/host' "$makefile" >/dev/null
+grep -F 'po2lmo ./po/en/ils-gateway.po $(PKG_BUILD_DIR)/ils-gateway.en.lmo' "$makefile" >/dev/null
+grep -F '$(INSTALL_DATA) $(PKG_BUILD_DIR)/ils-gateway.en.lmo $(1)/usr/lib/lua/luci/i18n/ils-gateway.en.lmo' "$makefile" >/dev/null
 ! grep -F '+coreutils-timeout' "$makefile" >/dev/null || {
 	echo 'coreutils-timeout must not be an external package dependency' >&2
 	exit 1
@@ -85,6 +88,10 @@ if grep -F '$(1)/etc/nftables.d' "$makefile" >/dev/null 2>&1; then
 	exit 1
 fi
 migration="$root/package/ils-gateway/root/etc/uci-defaults/90-ios-location-spoofer"
+grep -F "luci.languages.zh_cn='简体中文 (Chinese)'" "$migration" >/dev/null || {
+	echo 'LuCI automatic Chinese language registration is missing' >&2
+	exit 1
+}
 grep -F 'config.location=profile' "$migration" >/dev/null || {
 	echo 'missing stale profile migration' >&2
 	exit 1

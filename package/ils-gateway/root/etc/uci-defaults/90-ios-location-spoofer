@@ -5,6 +5,13 @@ set -eu
 config=ios-location-spoofer
 changed=0
 
+# Register Simplified Chinese so LuCI's automatic Accept-Language selection can
+# choose it even when the system-wide Chinese language pack is not installed.
+if [ "$(uci -q get luci.languages.zh_cn || true)" != "简体中文 (Chinese)" ]; then
+	uci -q set luci.languages.zh_cn='简体中文 (Chinese)'
+	uci -q commit luci
+fi
+
 append_legacy_selector() {
 	option=$1
 	list=$2

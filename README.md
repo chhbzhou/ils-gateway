@@ -1,5 +1,7 @@
 # iLS Gateway
 
+English | [简体中文](README.zh-CN.md)
+
 Experimental OpenWrt gateway for authorized LAN devices. The data plane has:
 
 - transparent TCP accept routing with Linux `SO_ORIGINAL_DST` and IPv6 support;
@@ -20,6 +22,10 @@ The transparent listener is fixed at `0.0.0.0:10443` with a matching IPv6
 listener, and the LAN CA enrollment endpoint is fixed at `0.0.0.0:10445`.
 These ports are intentionally not editable through UCI or LuCI because the
 fw4 ruleset is static.
+
+The LuCI interface supports English and Simplified Chinese. It follows LuCI's
+configured language or, when set to automatic, the browser's preferred
+language.
 
 ## Build and Test
 

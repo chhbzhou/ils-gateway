@@ -9,10 +9,40 @@ lucide="$asset_dir/lucide.min.js"
 qrcode="$asset_dir/qrcode.min.js"
 acl="$root/package/ils-gateway/root/usr/share/rpcd/acl.d/luci-app-ios-location-spoofer.json"
 config="$root/package/ils-gateway/root/etc/config/ios-location-spoofer"
+english_po="$root/package/ils-gateway/po/en/ils-gateway.po"
 
-for file in "$view" "$style" "$lucide" "$qrcode" "$acl" "$config"; do
+for file in "$view" "$style" "$lucide" "$qrcode" "$acl" "$config" "$english_po"; do
 	[ -s "$file" ] || { echo "missing LuCI asset: $file" >&2; exit 1; }
 done
+
+i18n_strings=$(mktemp "${TMPDIR:-/tmp}/ils-i18n.XXXXXX")
+trap 'rm -f "$i18n_strings"' EXIT HUP INT TERM
+awk '{
+	line = $0
+	while (match(line, /_\(\047[^\047]*\047\)/)) {
+		print substr(line, RSTART + 3, RLENGTH - 5)
+		line = substr(line, RSTART + RLENGTH)
+	}
+}' "$view" | sort -u > "$i18n_strings"
+
+missing=0
+while IFS= read -r msgid; do
+	grep -Fx "msgid \"$msgid\"" "$english_po" >/dev/null || {
+		echo "missing English LuCI translation: $msgid" >&2
+		missing=1
+	}
+done < "$i18n_strings"
+[ "$missing" -eq 0 ] || exit 1
+awk '
+	/^msgid "/ { id = $0; next }
+	/^msgstr "/ && id != "msgid \"\"" {
+		if ($0 == "msgstr \"\"") exit 1
+		id = ""
+	}
+' "$english_po"
+grep -F 'msgstr "Location service is running"' "$english_po" >/dev/null
+grep -F 'msgstr "iLS Location Manager"' "$english_po" >/dev/null
+! grep -F 'navigator.language' "$view" >/dev/null
 
 grep -F "handleSaveApply: null" "$view" >/dev/null
 grep -F "handleSave: null" "$view" >/dev/null
